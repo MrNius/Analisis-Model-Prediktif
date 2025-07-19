@@ -1,0 +1,204 @@
+---
+title: "Coding AMP Capstone"
+author: "Antonius Aditya Rizky Wijaya"
+date: "2025-04-19"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Import data
+setwd("D:/IPB UNIVERSITY/PERKULIAHAN/Semester 6/Analisis Model Prediktif/Tugas Akhir/Data AMP")
+library(readxl)
+faktor <- read_excel("kumpulan_data_makroekonomi_indonesia.xlsx")
+View(faktor)
+```
+
+```{r}
+# Sesuaikan format desimal
+faktor$gdp_agr <- as.numeric(gsub(",", ".", faktor$gdp_agr))
+faktor$oil_price <- as.numeric(gsub(",", ".", faktor$oil_price))
+faktor$coal_price <- as.numeric(gsub(",", ".", faktor$coal_price))
+faktor$cpo_price <- as.numeric(gsub(",", ".", faktor$cpo_price))
+str(faktor)
+```
+
+```{r}
+# Standarisasi data
+faktor_baru <- faktor[, -1]
+X <- as.matrix(faktor_baru[, -which(names(faktor_baru) == "usd_idr")])
+y <- faktor_baru$usd_idr
+X_standar <- scale(X)
+```
+
+```{r}
+# Pemodelan OLS
+model_ols <- lm(y ~ ., data = as.data.frame(X_standar))
+summary(model_ols)
+```
+
+```{r}
+# Uji asumsi multikolinearitas model OLS
+#install.packages("car")
+library(car)
+vif(model_ols)
+```
+
+```{r}
+# Packages regresi LASSO dan ridge
+#install.packages("glmnet")
+library(glmnet)
+```
+
+```{r rolling-window-cv-functions}
+# Function rolling window cross-validation
+rolling_cv_detailed <- function(X, y, window_size = 36, alpha = 1, lambda_seq = NULL) {
+  n <- nrow(X)
+  rmse_vec <- c()
+  rmse_sd_vec <- c()
+  
+  for (lambda in lambda_seq) {
+    errors <- c()
+    
+    for (i in (window_size + 1):n) {
+      train_X <- X[(i - window_size):(i - 1), ]
+      train_y <- y[(i - window_size):(i - 1)]
+      test_X <- X[i, , drop = FALSE]
+      test_y <- y[i]
+      
+      model <- glmnet(train_X, train_y, alpha = alpha, lambda = lambda)
+      pred <- predict(model, newx = test_X)
+      err <- (test_y - pred)^2
+      errors <- c(errors, err)
+    }
+    
+    rmse_vec <- c(rmse_vec, mean(sqrt(errors)))
+    rmse_sd_vec <- c(rmse_sd_vec, sd(sqrt(errors)))
+  }
+  
+  best_lambda <- lambda_seq[which.min(rmse_vec)]
+  
+  list(
+    lambda_seq = lambda_seq,
+    rmse = rmse_vec,
+    rmse_sd = rmse_sd_vec,
+    lambda.min = best_lambda
+  )
+}
+```
+
+```{r lasso}
+# Pemodelan regresi LASSO
+set.seed(123)
+lambda_seq <- 10^seq(4, -4, length = 100)
+lasso_result <- rolling_cv_detailed(X_standar, y, window_size = 36, alpha = 1, lambda_seq = lambda_seq)
+
+best_lambda_lasso <- lambda_seq[which.min(lasso_result$rmse)]
+lasso_model <- glmnet(X_standar, y, alpha = 1, lambda = best_lambda_lasso)
+
+# Buat Plot
+lambda_vals <- lasso_result$lambda_seq
+log_lambda <- log(lambda_vals)
+rmse_vals <- lasso_result$rmse
+rmse_sd <- lasso_result$rmse_sd
+
+cap_width <- 0.05
+plot(log_lambda, rmse_vals, type = "p", pch = 20, col = "blue",
+     xlab = expression(Log(lambda)), ylab = "Root Mean-Squared Error",
+     ylim = c(min(rmse_vals - rmse_sd), max(rmse_vals + rmse_sd)), cex.axis = 0.9)
+segments(log_lambda, rmse_vals - rmse_sd,
+         log_lambda, rmse_vals + rmse_sd, col = "grey")
+segments(log_lambda - cap_width, rmse_vals + rmse_sd,
+         log_lambda + cap_width, rmse_vals + rmse_sd, col = "grey")
+segments(log_lambda - cap_width, rmse_vals - rmse_sd,
+         log_lambda + cap_width, rmse_vals - rmse_sd, col = "grey")
+
+abline(v = log(lasso_result$lambda.min), lty = 2)
+
+tick_pos <- seq(floor(min(log_lambda)), ceiling(max(log_lambda)), by = 1)
+axis(side = 1, at = tick_pos, labels = round(tick_pos, 1), cex.axis = 0.9)
+
+model <- glmnet(X_standar, y, alpha = 1, lambda = lambda_vals, standardize = FALSE)
+nzero <- model$df
+axis(3, at = log_lambda, labels = nzero, las = 1, cex.axis = 0.7, hadj = 0.5)
+```
+
+```{r ridge}
+# Pemodelan regresi ridge
+set.seed(123)
+lambda_seq <- 10^seq(4, -4, length = 100)
+ridge_result <- rolling_cv_detailed(X_standar, y, window_size = 36, alpha = 0, lambda_seq = lambda_seq)
+
+best_lambda_ridge <- lambda_seq[which.min(ridge_result$rmse)]
+ridge_model <- glmnet(X_standar, y, alpha = 0, lambda = best_lambda_ridge)
+
+# Buat Plot
+lambda_vals <- ridge_result$lambda_seq
+log_lambda <- log(lambda_vals)
+rmse_vals <- ridge_result$rmse
+rmse_sd <- ridge_result$rmse_sd
+
+cap_width <- 0.05
+plot(log_lambda, rmse_vals, type = "p", pch = 20, col = "blue",
+     xlab = expression(Log(lambda)), ylab = "Root Mean-Squared Error",
+     ylim = c(min(rmse_vals - rmse_sd), max(rmse_vals + rmse_sd)), cex.axis = 0.9)
+segments(log_lambda, rmse_vals - rmse_sd,
+         log_lambda, rmse_vals + rmse_sd, col = "grey")
+segments(log_lambda - cap_width, rmse_vals + rmse_sd,
+         log_lambda + cap_width, rmse_vals + rmse_sd, col = "grey")
+segments(log_lambda - cap_width, rmse_vals - rmse_sd,
+         log_lambda + cap_width, rmse_vals - rmse_sd, col = "grey")
+
+abline(v = log(ridge_result$lambda.min), lty = 2)
+
+tick_pos <- seq(floor(min(log_lambda)), ceiling(max(log_lambda)), by = 1)
+axis(side = 1, at = tick_pos, labels = round(tick_pos, 1), cex.axis = 0.9)
+
+model <- glmnet(X_standar, y, alpha = 0, lambda = lambda_vals, standardize = FALSE)
+nzero <- model$df
+axis(3, at = log_lambda, labels = nzero, las = 1, cex.axis = 0.7, hadj = 0.5)
+```
+
+```{r}
+# Ekstrak koefisien
+coef_ridge <- coef(ridge_model)
+coef_lasso <- coef(lasso_model)
+
+# Koefisien Lasso yang tidak nol (variabel terpilih)
+selected_lasso <- coef_lasso[coef_lasso[, 1] != 0, ]
+selected_lasso
+
+# Koefisien ridge
+coef_ridge
+```
+
+```{r}
+library(Metrics)
+
+# Prediksi
+pred_ridge <- predict(ridge_model, s = best_lambda_ridge, newx = X_standar)
+pred_lasso <- predict(lasso_model, s = best_lambda_lasso, newx = X_standar)
+
+# Metrik evaluasi
+rmse_ridge <- rmse(y, pred_ridge)
+rmse_lasso <- rmse(y, pred_lasso)
+
+mape_ridge_persen <- mape(y, pred_ridge)*100
+mape_lasso_persen <- mape(y, pred_lasso)*100
+
+r2_ridge <- 1 - sum((y - pred_ridge)^2) / sum((y - mean(y))^2)
+r2_lasso <- 1 - sum((y - pred_lasso)^2) / sum((y - mean(y))^2)
+
+# Tampilkan hasil
+data.frame(
+  Model = c("Ridge", "Lasso"),
+  RMSE = c(rmse_ridge, rmse_lasso),
+  MAPE = c(mape_ridge_persen, mape_lasso_persen),
+  R2 = c(r2_ridge, r2_lasso)
+)
+```
