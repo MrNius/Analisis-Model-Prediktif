@@ -1,0 +1,324 @@
+---
+title: "Laporan Praktikum 4 AMP"
+author: "Antonius Aditya Rizky Wijaya\nG5402221003"
+date: "2025-02-13"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Classification Methods
+
+```{r}
+library(ISLR2)
+attach(Smarket)
+```
+
+## Logistic Regression
+
+```{r}
+glm.fits <- glm(
+    Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume,
+    data = Smarket, family = binomial
+  )
+summary(glm.fits)
+```
+Keterangan : 
+Model menggunakan semua lag dan volume sebagai prediktor. Dari output `summary(glm.fits)`, kita bisa melihat apakah variabel-variabel ini signifikan atau tidak berdasarkan p-value.
+
+```{r}
+coef(glm.fits)
+summary(glm.fits)$coef
+summary(glm.fits)$coef[, 4]
+```
+Keterangan :
+Kita bisa melihat prediktor mana yang signifikan berdasarkan p-value (biasanya < 0.05 dianggap signifikan).
+
+```{r}
+glm.probs <- predict(glm.fits, type = "response")
+glm.probs[1:10]
+contrasts(Direction)
+```
+Keterangan :
+Model menghasilkan probabilitas dari `Up`, dan kita bisa melihat bagaimana kategori dikodekan dalam regresi logistik.
+
+```{r}
+glm.pred <- rep("Down", 1250)
+glm.pred[glm.probs > .5] = "Up"
+```
+Keterangan :
+Model sekarang menghasilkan klasifikasi biner (`Up` atau `Down`) berdasarkan probabilitas.
+
+```{r}
+table(glm.pred, Direction)
+(507 + 145) / 1250
+mean(glm.pred == Direction)
+```
+Keterangan :
+Model memiliki akurasi tertentu, tetapi kita belum tahu apakah ini lebih baik dari tebakan acak.
+
+```{r}
+train <- (Year < 2005)
+Smarket.2005 <- Smarket[!train, ]
+dim(Smarket.2005)
+Direction.2005 <- Direction[!train]
+```
+Keterangan :
+Dataset sekarang dipisah menjadi train (sebelum 2005) dan test (2005 ke atas) untuk mengevaluasi model dengan data baru.
+
+```{r chunk10}
+glm.fits <- glm(
+    Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume,
+    data = Smarket, family = binomial, subset = train
+  )
+glm.probs <- predict(glm.fits, Smarket.2005,
+    type = "response")
+```
+Keterangan :
+Model sekarang diuji pada data baru, bukan pada data latih.
+
+```{r}
+glm.pred <- rep("Down", 252)
+glm.pred[glm.probs > .5] <- "Up"
+table(glm.pred, Direction.2005)
+mean(glm.pred == Direction.2005)
+mean(glm.pred != Direction.2005)
+```
+Keterangan :
+Akurasi model bisa dibandingkan dengan baseline model (tebakan acak).
+
+```{r}
+glm.fits <- glm(Direction ~ Lag1 + Lag2, data = Smarket,
+    family = binomial, subset = train)
+glm.probs <- predict(glm.fits, Smarket.2005,
+    type = "response")
+glm.pred <- rep("Down", 252)
+glm.pred[glm.probs > .5] <- "Up"
+table(glm.pred, Direction.2005)
+mean(glm.pred == Direction.2005)
+106 / (106 + 76)
+```
+Keterangan :
+Menggunakan lebih sedikit prediktor mungkin meningkatkan atau menurunkan performa model.
+
+```{r chunk13}
+predict(glm.fits,
+    newdata =
+      data.frame(Lag1 = c(1.2, 1.5),  Lag2 = c(1.1, -0.8)),
+    type = "response"
+  )
+```
+Keterangan :
+Model bisa digunakan untuk memprediksi tren pasar berdasarkan nilai `Lag1` dan `Lag2` baru.
+
+## Poisson Regression
+
+```{r}
+attach(Bikeshare)
+dim(Bikeshare)
+names(Bikeshare)
+```
+Keterangan :
+Mengecek struktur dataset `Bikeshare`, termasuk jumlah variabel dan nama kolomnya.
+
+```{r}
+mod.lm <- lm(
+    bikers ~ mnth + hr + workingday + temp + weathersit,
+    data = Bikeshare
+  )
+summary(mod.lm)
+```
+Keterangan :
+Menentukan pengaruh variabel prediktor terhadap jumlah `bikers` menggunakan regresi linear.
+
+```{r}
+contrasts(Bikeshare$hr) = contr.sum(24)
+contrasts(Bikeshare$mnth) = contr.sum(12)
+mod.lm2 <- lm(
+    bikers ~ mnth + hr + workingday + temp + weathersit,
+    data = Bikeshare
+  )
+summary(mod.lm2)
+```
+Keterangan :
+`mod.lm2` lebih sesuai untuk interpretasi dalam model regresi karena kontrast sum lebih baik dalam menangkap efek variabel kategorikal.
+
+```{r}
+sum((predict(mod.lm) - predict(mod.lm2))^2)
+```
+Keterangan :
+Jika hasilnya nol atau sangat kecil, berarti `mod.lm` dan `mod.lm2` memberikan prediksi yang hampir sama.
+
+```{r}
+all.equal(predict(mod.lm), predict(mod.lm2))
+```
+Keterangan :
+- Jika `TRUE`, berarti kedua model menghasilkan prediksi yang sama.
+- Jika `FALSE`, berarti ada sedikit perbedaan karena metode estimasi atau kontrast sum.
+
+```{r}
+coef.months <- c(coef(mod.lm2)[2:12],
+    -sum(coef(mod.lm2)[2:12]))
+```
+Keterangan :
+Mempermudah analisis efek bulanan dalam model.
+
+```{r}
+plot(coef.months, xlab = "Month", ylab = "Coefficient",
+    xaxt = "n", col = "blue", pch = 19, type = "o")
+axis(side = 1, at = 1:12, labels = c("J", "F", "M", "A",
+    "M", "J", "J", "A", "S", "O", "N", "D"))
+```
+Keterangan :
+Grafik ini menunjukkan pola musiman dalam jumlah pengguna sepeda.
+
+```{r}
+coef.hours <- c(coef(mod.lm2)[13:35],
+    -sum(coef(mod.lm2)[13:35]))
+plot(coef.hours, xlab = "Hour", ylab = "Coefficient",
+    col = "blue", pch = 19, type = "o")
+```
+Keterangan :
+Grafik ini menunjukkan pola penggunaan sepeda berdasarkan waktu dalam sehari.
+
+```{r}
+mod.pois <- glm(
+    bikers ~ mnth + hr + workingday + temp + weathersit,
+    data = Bikeshare, family = poisson
+  )
+summary(mod.pois)
+```
+Keterangan :
+Model ini lebih sesuai dibanding regresi linear jika data `bikers` memiliki distribusi poisson.
+
+```{r}
+coef.mnth <- c(coef(mod.pois)[2:12],
+    -sum(coef(mod.pois)[2:12]))
+plot(coef.mnth, xlab = "Month", ylab = "Coefficient",
+     xaxt = "n", col = "blue", pch = 19, type = "o")
+axis(side = 1, at = 1:12, labels = c("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"))
+coef.hours <- c(coef(mod.pois)[13:35],
+     -sum(coef(mod.pois)[13:35]))
+plot(coef.hours, xlab = "Hour", ylab = "Coefficient",
+    col = "blue", pch = 19, type = "o")
+```
+Keterangan :
+Pola yang dihasilkan dapat dibandingkan dengan model regresi linear untuk melihat perbedaan dalam interpretasi.
+
+```{r}
+plot(predict(mod.lm2), predict(mod.pois, type = "response"))
+abline(0, 1, col = 2, lwd = 3)
+```
+Keterangan :
+- Jika titik-titik berada di sekitar garis merah, maka kedua model memberikan hasil prediksi yang serupa.
+- Jika menyimpang, berarti kedua model memiliki perbedaan dalam estimasi jumlah pengguna sepeda.
+
+
+# Exercise
+
+# Nomor 13
+
+> This question should be answered using the `Weekly` data set, which is part of the `ISLR2` package. This data is similar in nature to the `Smarket` data from this chapter's lab, except that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+```{r}
+library(ISLR2)
+data(Weekly)
+names(Weekly)
+dim(Weekly)
+```
+
+> b. Use the full data set to perform a logistic regression with `Direction` as the response and the five lag variables plus `Volume` as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so, which ones?
+
+```{r}
+log_model <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Weekly, family = binomial)
+summary(log_model)
+```
+Terlihat bahwa `Lag2` signifikan dengan Pr(>|z|) = 3%
+
+> c. Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+
+```{r}
+prediksi <- predict(log_model, type = "response")
+predicted <- ifelse(prediksi > 0.5, "Up", "Down")
+(confusion_matrix <- table(Prediction = predicted, Actual = Weekly$Direction))
+
+(akurasi <- mean(predicted == Weekly$Direction))
+#sum(diag(confusion_matrix)) / sum(confusion_matrix)
+```
+Persentase prediksi: (54+557)/(54+557+48+430) = 56,1%.
+- Ketika pasar naik, regresi logistik benar sebesar 557/(557+48) = 92,1%. 
+- Ketika pasar turun, regresi logistik benar sebesar 54/(430+54) = 11,2%.
+
+Model ini tidak terlalu akurat untuk memprediksi, karena fraksi keseluruhan dari prediksi yang benar hanya sebesar 56,1%. meskipun model regresi logistik ini memprediksi kenaikan dengan baik, ada kesalahan prediksi yang menganggap penurunan sebagai kenaikan.
+
+> d. Now fit the logistic regression model using a training data period from 1990 to 2008, with `Lag2` as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+```{r}
+train <- Weekly$Year < 2009
+test <- Weekly$Year > 2008
+
+log_model_d <- glm(Direction ~ Lag2, data = Weekly[train, ], family = binomial)
+prediksi_d <- predict(log_model_d, Weekly[test, ], type = "response")
+predic <- ifelse(prediksi_d > 0.5, "Up", "Down")
+(confusion_matrix_d <- table(Prediction = predic, Actual = Weekly[test, ]$Direction))
+
+(akurasi_d <- mean(predic == Weekly[test, ]$Direction))
+#sum(diag(confusion_matrix_d)) / sum(confusion_matrix_d)
+```
+Berdasarkan 13b, kita tahu bahwa `Lag2` merupakan prediktor yang paling signifikan, sehingga ketika kita hanya menggunakan `Lag2` sebagai  prediktor, nilai akurasi dari model regresi logistiknya menjadi meningkat (62.5%), dibanding jika kita menggunakan prediktor lain yang tidak signifikan.
+
+
+# Nomor 14
+
+> In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the `Auto` data set.
+
+> f. Perform logistic regression on the training data in order to predict `mpg01` using the variables that seemed most associated with `mpg01` in (b). What is the test error of the model obtained?
+
+```{r}
+library(ISLR2)
+data(Auto)
+mpg01 <- ifelse(Auto$mpg > median(Auto$mpg), 1, 0)
+data_auto <- data.frame(Auto[,-1], mpg01)
+
+set.seed(1)
+train_index <- sample(1:nrow(data_auto), nrow(data_auto) * 2/3)
+train_data <- data_auto[train_index, ]
+test_data <- data_auto[-train_index, ]
+```
+
+```{r}
+log_model <- glm(mpg01 ~ cylinders + horsepower + weight + displacement, data = train_data, family = binomial)
+log_probability <- predict(log_model, test_data, type = "response")
+log_predict <- ifelse(log_probability > 0.5, 1, 0)
+error_log <- mean(log_predict != test_data$mpg01)
+cat("Error:", error_log)
+cat("\nAkurasi:", 1 - error_log)
+```
+Untuk memprediksi `mpg` dengan prediktor `Cylinders`, `Displacement`, `Horsepower`, dan `Weight` menggunakan model Regresi Logistik, memiliki error (potensi salah) sebesar 8.4%. Berarti model Regresi Logistik ini bagus untuk memodelkan data `Auto`, dan memprediksi `mpg01`dengan akurasi 91.6%.
+
+
+# Nomor 16
+
+> Using the `Boston` data set, fit classification models in order to predict whether a given census tract has a crime rate above or below the median. Explore logistic regression, LDA, naive Bayes and KNN models using various sub-sets of the predictors. Describe your findings.
+
+```{r}
+library(ISLR2)
+data(Boston)
+crime01 <- ifelse(Boston$crim > median(Boston$crim), 1, 0)
+data_boston <- data.frame(Boston, crime01)
+
+set.seed(1)
+train_index <- sample(1:nrow(data_boston), nrow(data_boston) * 0.7)
+train_data <- data_boston[train_index, ]
+test_data <- data_boston[-train_index, ]
+
+log_model <- glm(crime01 ~ lstat + dis + nox + rm + zn + indus + age + tax, data = train_data, family = "binomial")
+log_probability <- predict(log_model, test_data, type = "response")
+log_predict <- ifelse(log_probability > 0.5, 1, 0)
+error_log <- mean(log_predict != test_data$crime01)
+cat("Error:", error_log)
+cat("\nAkurasi:", 1 - error_log)
+```
+Memprediksi `crime01` dengan prediktor `lstat`, `dis`, `nox`, `rm`, `zn`, `indus`, `age`, `tax`, menggunakan model Regresi Logistik, memiliki error (potensi salah) sebesar 14.47%. Berarti model Regresi Logistik ini bagus untuk memodelkan data `Boston`, dan memprediksi `crime01` dengan tingkat akurasi 85.53%.

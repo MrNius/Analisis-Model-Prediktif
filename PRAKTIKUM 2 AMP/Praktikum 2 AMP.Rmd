@@ -1,0 +1,409 @@
+---
+title: "Laporan Praktikum 2 AMP"
+author: "Antonius Aditya Rizky Wijaya"
+date: "2025-01-30"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Linear Regression
+
+## Libraries
+
+Fungsi `library()` dalam R digunakan untuk memuat kumpulan fungsi dan set data yang tidak termasuk dalam distribusi dasar R. Fungsi-fungsi dasar seperti regresi linear biasanya sudah tersedia dalam distribusi dasar, tetapi fungsi yang lebih kompleks memerlukan library tambahan.
+
+```{r chunk1}
+library(MASS)
+library(ISLR2)
+```
+
+Instal hanya satu kali. Namun, setiap kali memulai R, harus memanggil pustaka menggunakan fungsi `library()`.
+
+
+## Simple Linear Regression
+
+`ISLR2` berisi dataset `Boston`, yang mencatat data `medv` (nilai median rumah) untuk $506$ wilayah sensus di `Boston`. Analisis akan mencoba memprediksi `medv` menggunakan $12$ prediktor, termasuk:
+> `rmvar`: rata-rata jumlah kamar per rumah,
+> `age`: proporsi unit yang dimiliki dan dibangun sebelum tahun 1940,
+> `lstat`: persentase rumah tangga dengan status sosial ekonomi rendah.
+
+```{r chunk2}
+head(Boston)
+```
+`lm()` digunakan untuk membuat model regresi linier sederhana di R, dengan format `lm(respons ~ prediktor, data)`. Misalnya, untuk memprediksi `medv` berdasarkan `lstat`.
+
+```{r chunk3, error=TRUE}
+#lm.fit <- lm(medv ~ lstat)
+```
+
+Error terjadi karena R tidak mengenali variabel. Dengan menggunakan `attach(Boston)`, variabel dalam dataset `Boston` dapat dikenali oleh R
+
+```{r chunk4}
+lm.fit <- lm(medv ~ lstat, data = Boston)
+attach(Boston)
+lm.fit <- lm(medv ~ lstat)
+```
+
+`lm.fit` menampilkan informasi dasar model, sedangkan `summary(lm.fit)` memberikan informasi lebih rinci, termasuk p-value, standard error, R-squared, dan F-statistic untuk mengevaluasi model.
+
+```{r chunk5}
+lm.fit
+summary(lm.fit)
+```
+
+`names()` digunakan untuk melihat informasi dalam `lm.fit`, tetapi lebih baik mengaksesnya dengan `coef()`.
+
+```{r chunk6}
+names(lm.fit)
+coef(lm.fit)
+```
+
+`confint()` digunakan untuk menghitung interval kepercayaan untuk estimasi koefisien regresi.
+
+```{r chunk7}
+confint(lm.fit)
+```
+
+`predict()` berguna untuk menghitung interval kepercayaan dan prediksi saat ingin memperkirakan nilai respons (`medv`) pada suatu nilai prediktor tertentu (`lstat`).
+
+```{r chunk8}
+predict(lm.fit, data.frame(lstat = (c(5, 10, 15))),
+    interval = "confidence")
+predict(lm.fit, data.frame(lstat = (c(5, 10, 15))),
+    interval = "prediction")
+```
+
+Plot hubungan antara `medv` dan `lstat`, dengan garis regresi linear dengan fungsi `plot()` dan `abline()`
+
+```{r chunk9}
+plot(lstat, medv)
+abline(lm.fit)
+```
+
+```{r chunk10}
+plot(lstat, medv)
+abline(lm.fit, lwd = 3)
+abline(lm.fit, lwd = 3, col = "red")
+plot(lstat, medv, col = "red")
+plot(lstat, medv, pch = 20)
+plot(lstat, medv, pch = "+")
+plot(1:20, 1:20, pch = 1:20)
+```
+
+Plot diagnostik yang dapat dihasilkan menggunakan fungsi `plot()` pada output dari fungsi `lm()`. Fungsi ini secara otomatis menghasilkan empat plot diagnostik satu per satu.
+
+Agar lebih praktis, semua plot tersebut dapat ditampilkan secara bersamaan dengan menggunakan fungsi `par()` dan `mfrow()`. Sebagai contoh, perintah `par(mfrow = c(2, 2))` membagi area plot menjadi grid $2 \times 2$, sehingga keempat plot dapat dilihat dalam satu tampilan.
+
+```{r chunk11}
+par(mfrow = c(2, 2))
+plot(lm.fit)
+```
+
+Residual regresi linear dapat dihitung dengan `residuals()`, sedangkan `rstudent()` menghasilkan residual yang distudentisasi untuk membuat plot terhadap nilai prediksi.
+
+```{r chunk12}
+plot(predict(lm.fit), residuals(lm.fit))
+plot(predict(lm.fit), rstudent(lm.fit))
+```
+
+Dari plot residu, terdapat beberapa bukti adanya non-linearitas dalam data. Statistik leverage dapat dihitung untuk sejumlah prediktor menggunakan fungsi `hatvalues()`.
+
+`which.max()` berfungsi untuk menemukan indeks elemen dengan nilai terbesar pada sebuah vektor, misalnya untuk mencari observasi dengan leverage statistik tertinggi.
+
+```{r chunk13}
+plot(hatvalues(lm.fit))
+which.max(hatvalues(lm.fit))
+```
+
+
+## Multiple Linear Regression
+
+`lm()` digunakan untuk membuat model regresi linear berganda dengan metode kuadrat terkecil (least squares). Sintaks seperti `lm(y ~ x1 + x2 + x3)` dipakai untuk memodelkan hubungan antara variabel respon y dengan tiga prediktor, yaitu `x1`, `x2`, dan `x3`. Lalu `summary()` akan memberikan output koefisien regresi untuk semua prediktor.
+
+```{r chunk14}
+lm.fit <- lm(medv ~ lstat + age, data = Boston)
+summary(lm.fit)
+```
+
+Agar tidak mengetik satu satu, shorthand dapat digunakan untuk menyertakan semua prediktor dalam regresi. Biasanya ditulis menggunakan format `.` (titik) sebagai perwakilan semua prediktor.
+
+```{r chunk15}
+lm.fit <- lm(medv ~ ., data = Boston)
+summary(lm.fit)
+```
+
+Kita dapat mengakses komponen individu dari objek summary dalam R dengan menggunakan nama komponennya. `summary(lm.fit)$r.sq` untuk mendapatkan nilai $R^2$, dan `summary(lm.fit)$sigma` untuk mendapatkan Residual Standard Error (RSE). 
+
+`vif()` dari paket car digunakan untuk menghitung Variance Inflation Factors (VIF). Pada data ini, sebagian besar nilai VIF tergolong rendah hingga sedang.
+
+```{r chunk16}
+#install.packages('car')
+library(car)
+vif(lm.fit)
+```
+
+Jika suatu variabel, seperti `age`, memiliki nilai $p$ yang tinggi dan dianggap tidak signifikan, kita bisa mengevaluasi model tanpa `age` dengan sintaks :
+Alternatifnya, bisa gunakan fungsi`update()`.
+
+```{r chunk17}
+lm.fit1 <- lm(medv ~ . - age, data = Boston)
+#lm.fit1 <- update(lm.fit, ~ . - age)
+summary(lm.fit1)
+```
+
+
+## Interaction Terms
+
+```{r chunk18}
+summary(lm(medv ~ lstat * age, data = Boston))
+```
+
+
+## Non-linear Transformations of the Predictors
+
+`lm()` dapat digunakan untuk regresi dengan prediktor yang telah ditransformasikan secara non-linier, seperti menambahkan kuadrat dari prediktor (misalnya `lstat^2`), menggunakan fungsi `I()` untuk menghindari konflik dengan arti simbol `^` dalam formula.
+
+```{r chunk19}
+lm.fit2 <- lm(medv ~ lstat + I(lstat^2))
+summary(lm.fit2)
+```
+
+$p-value$ yang sangat kecil untuk istilah kuadratik menunjukkan bahwa istilah tersebut memperbaiki model. Fungsi `anova()` digunakan untuk membandingkan sejauh mana model kuadratik lebih unggul dari model linier.
+
+```{r chunk20}
+lm.fit <- lm(medv ~ lstat)
+anova(lm.fit, lm.fit2)
+```
+
+Model 2 yang menggunakan dua prediktor (`lstat` dan `lstat^2`) lebih baik daripada Model 1 yang hanya menggunakan `lstat`. Hal ini berdasarkan hasil uji ANOVA yang menunjukkan nilai $F$ yang sangat tinggi dan $p-value$ yang hampir nol. Hal ini menunjukkan adanya hubungan non-linear antara medv dan lstat.
+
+```{r chunk21}
+par(mfrow = c(2, 2))
+plot(lm.fit2)
+```
+
+Ketika `lstat^2` ditambahkan dalam model, tidak ada pola yang terlihat pada residual, yang berarti model tersebut lebih baik. Sehingga menambahkan prediktor polinomial dapat meningkatkan model regresi.
+
+Penggunaan fungsi `poly()` dalam `lm()` lebih efisien untuk membuat polinomial derajat tinggi,dari pada `I(X^3)`.
+
+```{r chunk22}
+lm.fit5 <- lm(medv ~ poly(lstat, 5))
+summary(lm.fit5)
+```
+
+Selain polinomial, kita juga dapat mencoba transformasi logaritma pada prediktor untuk eksplorasi lebih lanjut.
+
+```{r chunk23}
+summary(lm(medv ~ log(rm), data = Boston))
+```
+
+
+## Qualitative Predictors
+
+Data `Carseats` yang ada dalam pustaka `ISLR2` digunakan untuk memprediksi `Sales` (penjualan kursi mobil anak) di $400$ lokasi berdasarkan sejumlah prediktor.
+
+```{r chunk24}
+head(Carseats)
+```
+
+Data `Carseats` mencakup prediktor kualitatif seperti `shelveloc`, yang menunjukkan kualitas lokasi rak, yaitu ruang dalam toko tempat kursi mobil dipajang. Variabel prediktor `shelveloc` memiliki tiga nilai yang mungkin: *Bad*, *Medium*, dan *Good*. 
+
+Dalam model regresi ganda, variabel kualitatif seperti `shelveloc` secara otomatis diubah menjadi variabel dummy oleh R. Model regresi yang dipasang juga mencakup beberapa interaksi antar variabel.
+
+```{r chunk25}
+lm.fit <- lm(Sales ~ . + Income:Advertising + Price:Age, data = Carseats)
+summary(lm.fit)
+```
+
+`contrasts()` digunakan untuk melihat atau mengubah jenis pengkodean yang digunakan untuk variabel kategorikal, yang diubah menjadi variabel dummy (variabel biner) dalam model statistik. Variabel dummy ini digunakan dalam regresi dan analisis lainnya untuk mewakili kategori dalam bentuk angka.
+
+```{r chunk26}
+attach(Carseats)
+contrasts(ShelveLoc)
+```
+
+Penggunaan variabel dummy untuk menggambarkan lokasi rak produk dalam sebuah analisis regresi:
+> `ShelveLocGood`: Variabel dummy yang bernilai 1 jika lokasi rak produk baik, dan 0 jika tidak.
+> `ShelveLocMedium`: Variabel dummy yang bernilai 1 jika lokasi rak produk sedang, dan 0 jika tidak.
+> Lokasi rak buruk: Jika kedua variabel dummy (ShelveLocGood dan ShelveLocMedium) bernilai 0.
+
+
+## Writing  Functions
+
+Kita perlu menulis fungsi sendiri jika tidak ada fungsi yang sesuai. Jika fungsi ini belum didefinisikan, akan error saat di run.
+
+```{r chunk27, error=TRUE}
+#LoadLibraries
+#LoadLibraries()
+```
+
+Kita definisikan fungsinya:
+
+```{r chunk28}
+LoadLibraries <- function() {
+ library(ISLR2)
+ library(MASS)
+ print("The libraries have been loaded.")
+}
+```
+
+```{r chunk29}
+LoadLibraries
+```
+
+```{r chunk30}
+LoadLibraries()
+```
+
+
+# Exercises
+
+# Nomor 8
+>
+> This question involves the use of simple linear regression on the Auto data set.
+>
+> a. Use the `lm()` function to perform a simple linear regression with `mpg` as the response and `horsepower` as the predictor. Use the `summary()` function to print the results. Comment on the output.
+
+```{r}
+library(ISLR2)
+mpg_hp<- lm(mpg ~ horsepower, data = Auto)
+summary(mpg_hp)
+```
+
+>   i. Is there a relationship between the predictor and the response?
+
+$p-value$ untuk variabel horsepower sangat kecil (jauh di bawah 0,05), sehingga ada bukti yang kuat untuk menyimpulkan bahwa terdapat hubungan antara variabel prediktor (horsepower) dan respons (mpg(miles per gallon)).
+
+>   ii. How strong is the relationship between the predictor and the response?
+
+```{r}
+summary(mpg_hp)$sigma
+```
+RSE berbeda dalam hal bahwa satuannya mengikuti satuan dari variabel y. Namun, kita bisa membaginya dengan ȳ (nilai rata-rata dari y) untuk mendapatkan error dalam bentuk persentase :
+
+```{r}
+summary(mpg_hp)$sigma/mean(Auto$mpg)
+```
+Jadi persen error = 20.92%.
+
+```{r}
+summary(mpg_hp)$r.squared
+```
+$R^2$ dari model linier, bisa dianggap sebagai "persentase variasi pada respons yang dijelaskan oleh prediktor". $R^2$ adalah ukuran yang digunakan untuk menunjukkan seberapa baik model linier dapat menjelaskan atau memprediksi variabilitas data yang diamati.
+Dalam kasus ini, horsepower (prediktor) menjelaskan 60,59% varians dalam mpg (respons).
+
+>   iii. Is the relationship between the predictor and the response positive or negative?
+
+```{r}
+coefficients(mpg_hp)
+```
+Hubungannya negatif, artinya jika kendaraan memiliki horsepower lebih tinggi, umumnya nilai mpg-nya akan lebih rendah.
+
+>   iv. What is the predicted mpg associated with a horsepower of 98? What are the associated 95% confidence and prediction intervals?
+
+Jika nilai horsepower = 98, kita dapat memperoleh prediksi untuk nilai mpg (perkiraan), serta interval kepercayaan 95% dan interval prediksi 95% untuk mpg.
+
+The confidence interval:
+```{r}
+predict(mpg_hp, data.frame(horsepower = 98), interval = "confidence", level = 0.95)
+```
+
+The prediction interval:
+```{r}
+predict(mpg_hp, data.frame(horsepower = 98), interval = "prediction", level = 0.95)
+```
+Interval prediksi lebih lebar daripada interval kepercayaan seperti yang kita harapkan. Hal ini karena mempertimbangkan variasi tambahan dalam pengamatan individu.
+
+> b. Plot the response and the predictor. Use the `abline()` function to display the least squares regression line.
+
+```{r}
+plot(Auto$horsepower, Auto$mpg, xlab = "horsepower", ylab = "mpg")
+abline(mpg_hp, col = "blue")
+```
+
+> c. Use the `plot()` function to produce diagnostic plots of the least squares regression fit. Comment on any problems you see with the fit.
+
+```{r}
+par(mfrow = c(2,2))
+plot(mpg_hp, cex = 0.2)
+```
+Pada grafik yang menggambarkan hubungan antara residual (ei = yi − yi^) dan nilai yang diprediksi (yi^), terlihat ada pola yang kuat pada residuals, yang mengindikasikan adanya non-linearitas.
+
+Selain itu, ada varians yang tidak konstan pada error (heteroskedastisitas), tetapi hal ini bisa diperbaiki hingga tingkat tertentu dengan mencoba model kuadrat. Jika perbaikan ini tidak berhasil, transformasi seperti log(y) atau sqrt(y) dapat dicoba.
+
+Ada juga beberapa observasi dengan residual standar yang besar dan leverage tinggi (sehingga menghasilkan Cook's Distance yang tinggi), yang mungkin perlu diperiksa lebih lanjut.
+
+
+# Nomor 9
+>
+> This question involves the use of multiple linear regression on the `Auto` data set.
+>
+> a. Produce a scatterplot matrix which includes all of the variables in the data set.
+
+```{r}
+pairs(Auto, cex = 0.2)
+```
+
+> b. Compute the matrix of correlations between the variables using the function `cor()`. You will need to exclude the name variable, `name` which is qualitative.
+
+```{r}
+cor(subset(Auto, select = -name))
+```
+
+> c. Use the `lm()` function to perform a multiple linear regression with `mpg` as the response and all other variables except name as the predictors. Use the `summary()` function to print the results. Comment on the output.
+
+```{r}
+mpg_lm <- lm(mpg ~ . - name, data = Auto)
+summary(mpg_lm)
+```
+
+>    i. Is there a relationship between the predictors and the response?
+
+Ya, ada hubungan antara beberapa prediktor dan respons, yaitu "displacement" (positif), "weight" (negatif), "year" (positif), dan "origin" (positif).
+
+>    ii. Which predictors appear to have a statistically significant relationship to the response?
+
+Berdasarkan $p-value$ untuk koefisien dalam output model, dan dengan p = 0,05 sebagai ambang batas untuk signifikansi, semua variabel kecuali jumlah silinder, tenaga kuda (horsepower), dan akselerasi memiliki hubungan yang signifikan secara statistik dengan respons (variabel dependen).
+
+>    iii. What does the coefficient for the `year` variable suggest?
+
+Koefisien untuk variabel year (yang bernilai positif sekitar $0.75$) menunjukkan bahwa rata-rata konsumsi bahan bakar per galon (mpg) meningkat sekitar 0.75 setiap tahunnya. Artinya, setiap tahun, mpg cenderung meningkat sebesar 0.75 unit.
+
+> d. Use the `plot()` function to produce diagnostic plots of the linear regression fit. Comment on any problems you see with the fit. Do the residual plots suggest any unusually large outliers? Does the leverage plot identify any observations with unusually high leverage?
+
+```{r}
+par(mfrow = c(2, 2))
+plot(mpg_lm, cex = 0.2)
+```
+Satu titik memiliki leverage yang tinggi, residualnya juga menunjukkan tren dengan nilai yang disesuaikan. Ini berarti ada titik data yang sangat memengaruhi model, atau dengan kata lain ada outlier yang memiliki nilai besar meski hanya sedikit.
+
+> e. Use the `*` and `:` symbols to fit linear regression models with interaction effects. Do any interactions appear to be statistically significant?
+
+```{r}
+summary(lm(formula = mpg ~ . * ., data = Auto[, -9]))
+```
+Kita dapat melihat terms yang signifikan secara  statistik (pada level 0,05) ditandai dengan setidaknya satu tanda (*). Selain itu, $R^2$ nya (0.8893) menunjukkan bahwa model signifikan.
+
+> f. Try a few different transformations of the variables, such as $log(X)$, $\sqrt{X}$, $X^2$. Comment on your findings.
+
+```{r}
+model_log <- lm(mpg ~ log(horsepower) + log(weight) + log(cylinders), data = Auto)
+model_sqrt <- lm(mpg ~ sqrt(horsepower) + sqrt(weight) + sqrt(cylinders), data = Auto)
+model_squared <- lm(mpg ~ I(horsepower^2) + I(weight^2) + I(cylinders^2), data = Auto)
+summary(model_log)
+summary(model_sqrt)
+summary(model_squared)
+```
+Dilihat dari nilai $R^2$ nya, transformasi log dari `horsepower` mampu memberikan hubungan yang lebih linear dengan mpg, karena memiliki $R^2$ yang paling besar (0.7403)
+
+```{r}
+par(mfrow = c(2, 2))
+plot(Auto$horsepower, Auto$mpg, cex = 0.2)
+plot(log(Auto$horsepower), Auto$mpg, cex = 0.2)
+plot(sqrt(Auto$horsepower), Auto$mpg, cex = 0.2)
+plot(Auto$horsepower^2, Auto$mpg, cex = 0.2)
+```
+By the plot juga terlihat transformasi log dari `horsepower` memberikan hubungan yang lebih linear dengan mpg.

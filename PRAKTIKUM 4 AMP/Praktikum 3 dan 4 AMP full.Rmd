@@ -1,0 +1,747 @@
+---
+title: "Laporan Praktikum 3 AMP"
+author: "Antonius Aditya Rizky Wijaya"
+date: "2025-02-03"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Classification Methods
+
+## The Stock Market Data
+
+```{r chunk1}
+library(ISLR2)
+names(Smarket)
+dim(Smarket)
+summary(Smarket)
+pairs(Smarket)
+```
+
+```{r chunk2, error=TRUE}
+#cor(Smarket)
+cor(Smarket[, -9])
+```
+
+```{r chunk3}
+attach(Smarket)
+plot(Volume)
+```
+
+
+## Logistic Regression
+
+```{r chunk4}
+glm.fits <- glm(
+    Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume,
+    data = Smarket, family = binomial
+  )
+summary(glm.fits)
+```
+
+```{r chunk5}
+coef(glm.fits)
+summary(glm.fits)$coef
+summary(glm.fits)$coef[, 4]
+```
+
+```{r chunk6}
+glm.probs <- predict(glm.fits, type = "response")
+glm.probs[1:10]
+contrasts(Direction)
+```
+
+```{r chunk7}
+glm.pred <- rep("Down", 1250)
+glm.pred[glm.probs > .5] = "Up"
+```
+
+```{r chunk8}
+table(glm.pred, Direction)
+(507 + 145) / 1250
+mean(glm.pred == Direction)
+```
+
+```{r chunk9}
+train <- (Year < 2005)
+Smarket.2005 <- Smarket[!train, ]
+dim(Smarket.2005)
+Direction.2005 <- Direction[!train]
+```
+
+```{r chunk10}
+glm.fits <- glm(
+    Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume,
+    data = Smarket, family = binomial, subset = train
+  )
+glm.probs <- predict(glm.fits, Smarket.2005,
+    type = "response")
+```
+
+```{r chunk11}
+glm.pred <- rep("Down", 252)
+glm.pred[glm.probs > .5] <- "Up"
+table(glm.pred, Direction.2005)
+mean(glm.pred == Direction.2005)
+mean(glm.pred != Direction.2005)
+```
+
+```{r chunk12}
+glm.fits <- glm(Direction ~ Lag1 + Lag2, data = Smarket,
+    family = binomial, subset = train)
+glm.probs <- predict(glm.fits, Smarket.2005,
+    type = "response")
+glm.pred <- rep("Down", 252)
+glm.pred[glm.probs > .5] <- "Up"
+table(glm.pred, Direction.2005)
+mean(glm.pred == Direction.2005)
+106 / (106 + 76)
+```
+
+```{r chunk13}
+predict(glm.fits,
+    newdata =
+      data.frame(Lag1 = c(1.2, 1.5),  Lag2 = c(1.1, -0.8)),
+    type = "response"
+  )
+```
+
+
+## Linear Discriminant Analysis
+
+```{r chunk14}
+library(MASS)
+lda.fit <- lda(Direction ~ Lag1 + Lag2, data = Smarket,
+    subset = train)
+lda.fit
+plot(lda.fit)
+```
+
+```{r chunk15}
+lda.pred <- predict(lda.fit, Smarket.2005)
+names(lda.pred)
+```
+
+```{r chunk16}
+lda.class <- lda.pred$class
+table(lda.class, Direction.2005)
+mean(lda.class == Direction.2005)
+```
+
+```{r chunk17}
+sum(lda.pred$posterior[, 1] >= .5)
+sum(lda.pred$posterior[, 1] < .5)
+```
+
+```{r chunk18}
+lda.pred$posterior[1:20, 1]
+lda.class[1:20]
+```
+
+```{r chunk19}
+sum(lda.pred$posterior[, 1] > .9)
+```
+
+
+## Quadratic Discriminant Analysis
+
+```{r chunk20}
+qda.fit <- qda(Direction ~ Lag1 + Lag2, data = Smarket,
+    subset = train)
+qda.fit
+```
+
+```{r chunk21}
+qda.class <- predict(qda.fit, Smarket.2005)$class
+table(qda.class, Direction.2005)
+mean(qda.class == Direction.2005)
+```
+
+
+## Naive Bayes
+
+```{r chunk22}
+library(e1071)
+nb.fit <- naiveBayes(Direction ~ Lag1 + Lag2, data = Smarket,
+    subset = train)
+nb.fit
+```
+
+```{r chunk23}
+mean(Lag1[train][Direction[train] == "Down"])
+sd(Lag1[train][Direction[train] == "Down"])
+```
+
+```{r chunk24}
+nb.class <- predict(nb.fit, Smarket.2005)
+table(nb.class, Direction.2005)
+mean(nb.class == Direction.2005)
+```
+
+```{r chunk25}
+nb.preds <- predict(nb.fit, Smarket.2005, type = "raw")
+nb.preds[1:5, ]
+```
+
+
+## $K$-Nearest Neighbors
+
+```{r chunk26}
+library(class)
+train.X <- cbind(Lag1, Lag2)[train, ]
+test.X <- cbind(Lag1, Lag2)[!train, ]
+train.Direction <- Direction[train]
+```
+
+```{r chunk27}
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k = 1)
+table(knn.pred, Direction.2005)
+(83 + 43) / 252
+```
+
+```{r chunk28}
+knn.pred <- knn(train.X, test.X, train.Direction, k = 3)
+table(knn.pred, Direction.2005)
+mean(knn.pred == Direction.2005)
+```
+
+```{r chunk29}
+dim(Caravan)
+attach(Caravan)
+summary(Purchase)
+348 / 5822
+```
+
+```{r chunk30}
+standardized.X <- scale(Caravan[, -86])
+var(Caravan[, 1])
+var(Caravan[, 2])
+var(standardized.X[, 1])
+var(standardized.X[, 2])
+```
+
+```{r chunk31}
+test <- 1:1000
+train.X <- standardized.X[-test, ]
+test.X <- standardized.X[test, ]
+train.Y <- Purchase[-test]
+test.Y <- Purchase[test]
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Y, k = 1)
+mean(test.Y != knn.pred)
+mean(test.Y != "No")
+```
+
+```{r chunk32}
+table(knn.pred, test.Y)
+9 / (68 + 9)
+```
+
+```{r chunk33}
+knn.pred <- knn(train.X, test.X, train.Y, k = 3)
+table(knn.pred, test.Y)
+5 / 26
+knn.pred <- knn(train.X, test.X, train.Y, k = 5)
+table(knn.pred, test.Y)
+4 / 15
+```
+
+```{r chunk34}
+glm.fits <- glm(Purchase ~ ., data = Caravan,
+    family = binomial, subset = -test)
+glm.probs <- predict(glm.fits, Caravan[test, ],
+    type = "response")
+glm.pred <- rep("No", 1000)
+glm.pred[glm.probs > .5] <- "Yes"
+table(glm.pred, test.Y)
+glm.pred <- rep("No", 1000)
+glm.pred[glm.probs > .25] <- "Yes"
+table(glm.pred, test.Y)
+11 / (22 + 11)
+```
+
+
+## Poisson Regression
+
+```{r chunk35}
+attach(Bikeshare)
+dim(Bikeshare)
+names(Bikeshare)
+```
+
+```{r chunk36}
+mod.lm <- lm(
+    bikers ~ mnth + hr + workingday + temp + weathersit,
+    data = Bikeshare
+  )
+summary(mod.lm)
+```
+
+```{r chunk37}
+contrasts(Bikeshare$hr) = contr.sum(24)
+contrasts(Bikeshare$mnth) = contr.sum(12)
+mod.lm2 <- lm(
+    bikers ~ mnth + hr + workingday + temp + weathersit,
+    data = Bikeshare
+  )
+summary(mod.lm2)
+```
+
+```{r chunk38}
+sum((predict(mod.lm) - predict(mod.lm2))^2)
+```
+
+```{r chunk39}
+all.equal(predict(mod.lm), predict(mod.lm2))
+```
+
+```{r chunk40}
+coef.months <- c(coef(mod.lm2)[2:12],
+    -sum(coef(mod.lm2)[2:12]))
+```
+
+```{r chunk41}
+plot(coef.months, xlab = "Month", ylab = "Coefficient",
+    xaxt = "n", col = "blue", pch = 19, type = "o")
+axis(side = 1, at = 1:12, labels = c("J", "F", "M", "A",
+    "M", "J", "J", "A", "S", "O", "N", "D"))
+```
+
+```{r chunk42}
+coef.hours <- c(coef(mod.lm2)[13:35],
+    -sum(coef(mod.lm2)[13:35]))
+plot(coef.hours, xlab = "Hour", ylab = "Coefficient",
+    col = "blue", pch = 19, type = "o")
+```
+
+```{r chunk43}
+mod.pois <- glm(
+    bikers ~ mnth + hr + workingday + temp + weathersit,
+    data = Bikeshare, family = poisson
+  )
+summary(mod.pois)
+```
+
+```{r chunk44}
+coef.mnth <- c(coef(mod.pois)[2:12],
+    -sum(coef(mod.pois)[2:12]))
+plot(coef.mnth, xlab = "Month", ylab = "Coefficient",
+     xaxt = "n", col = "blue", pch = 19, type = "o")
+axis(side = 1, at = 1:12, labels = c("J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"))
+coef.hours <- c(coef(mod.pois)[13:35],
+     -sum(coef(mod.pois)[13:35]))
+plot(coef.hours, xlab = "Hour", ylab = "Coefficient",
+    col = "blue", pch = 19, type = "o")
+```
+
+```{r chunk45}
+plot(predict(mod.lm2), predict(mod.pois, type = "response"))
+abline(0, 1, col = 2, lwd = 3)
+```
+
+
+# Exercise
+
+# Nomor 13
+
+> This question should be answered using the `Weekly` data set, which is part of the `ISLR2` package. This data is similar in nature to the `Smarket` data from this chapter's lab, except that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+```{r}
+library(ISLR2)
+library(MASS)      # Untuk LDA dan QDA
+library(class)     # Untuk KNN
+library(e1071)     # Untuk Naive Bayes
+data(Weekly)
+names(Weekly)
+dim(Weekly)
+```
+> a. Produce some numerical and graphical summaries of the `Weekly` data. Do there appear to be any patterns?
+
+```{r}
+summary(Weekly)
+pairs(Weekly[, -9])
+plot(Weekly$Volume, type = "l", main = "Volume Mingguan", ylab = "Volume", xlab = "Minggu")
+```
+
+```{r}
+cor(Weekly[, -9])
+```
+Year dan Volume tampaknya memiliki hubungan, tapi tidak ada pola lain yang terlihat.
+
+> b. Use the full data set to perform a logistic regression with `Direction` as the response and the five lag variables plus `Volume` as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so, which ones?
+
+```{r}
+log_model <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Weekly, family = binomial)
+summary(log_model)
+```
+Terlihat bahwa Lag2 signifikan dengan Pr(>|z|) = 3%
+
+> c. Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+
+```{r}
+prediksi <- predict(log_model, type = "response")
+predicted <- ifelse(prediksi > 0.5, "Up", "Down")
+(confusion_matrix <- table(Prediction = predicted, Actual = Weekly$Direction))
+
+(akurasi <- mean(predicted == Weekly$Direction))
+#sum(diag(confusion_matrix)) / sum(confusion_matrix)
+```
+Persentase prediksi: (54+557)/(54+557+48+430) = 56,1%.
+
+Ketika pasar naik, regresi logistik benar sebesar 557/(557+48) = 92,1%. 
+Ketika pasar turun, regresi logistik benar sebesar 54/(430+54) = 11,2%.
+
+> d. Now fit the logistic regression model using a training data period from 1990 to 2008, with `Lag2` as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+```{r}
+train <- Weekly$Year < 2009
+test <- Weekly$Year > 2008
+
+log_model_d <- glm(Direction ~ Lag2, data = Weekly[train, ], family = binomial)
+prediksi_d <- predict(log_model_d, Weekly[test, ], type = "response")
+predic <- ifelse(prediksi_d > 0.5, "Up", "Down")
+(confusion_matrix_d <- table(Prediction = predic, Actual = Weekly[test, ]$Direction))
+
+(akurasi_d <- mean(predic == Weekly[test, ]$Direction))
+#sum(diag(confusion_matrix_d)) / sum(confusion_matrix_d)
+```
+
+> e. Repeat (d) using LDA.
+
+```{r}
+lda_model <- lda(Direction ~ Lag2, data = Weekly[train, ])
+prediksi_lda <- predict(lda_model, Weekly[test, ], type = "response")$class
+(confusion_matrix_lda <- table(Prediction = prediksi_lda, Actual = Weekly[test, ]$Direction))
+
+(akurasi_lda <- mean(prediksi_lda == Weekly[test, ]$Direction))
+#sum(diag(confusion_matrix_lda)) / sum(confusion_matrix_lda)
+```
+
+> f. Repeat (d) using QDA.
+
+```{r}
+qda_model <- qda(Direction ~ Lag2, data = Weekly[train, ])
+prediksi_qda <- predict(qda_model, Weekly[test, ], type = "response")$class
+(confusion_matrix_qda <- table(Prediction = prediksi_qda, Actual = Weekly[test, ]$Direction))
+
+(akurasi_qda <- mean(prediksi_qda == Weekly[test, ]$Direction))
+#sum(diag(confusion_matrix_qda)) / sum(confusion_matrix_qda)
+```
+
+> g. Repeat (d) using KNN with $K = 1$.
+
+```{r}
+knn_model <- knn(
+  Weekly[train, "Lag2", drop = FALSE],
+  Weekly[test, "Lag2", drop = FALSE],
+  Weekly$Direction[train]
+)
+(confusion_matrix_knn <- table(Prediction = knn_model, Actual = Weekly[test, ]$Direction))
+
+(akurasi_knn <- mean(knn_model == Weekly[test, ]$Direction))
+#sum(diag(confusion_matrix_knn)) / sum(confusion_matrix_knn)
+```
+
+> h. Repeat (d) using naive Bayes.
+
+```{r}
+nB_model <- naiveBayes(Direction ~ Lag2, data = Weekly, subset = train)
+prediksi_nB <- predict(nB_model, Weekly[test, ], type = "class")
+(confusion_matrix_nB <- table(Prediction = prediksi_nB, Actual = Weekly[test, ]$Direction))
+
+(akurasi_nB <- mean(prediksi_nB == Weekly[test, ]$Direction))
+#sum(diag(confusion_matrix_nB)) / sum(confusion_matrix_nB)
+```
+
+> i. Which of these methods appears to provide the best results on this data?
+
+```{r}
+hasil_akurasi <- data.frame(
+  Metode = c("Logistic Regression", "LDA", "QDA", "KNN (k=1)", "Naive Bayes"),
+  Akurasi = c(akurasi_d, akurasi_lda, akurasi_qda, akurasi_knn, akurasi_nB)
+)
+hasil_akurasi
+```
+Regresi Logistik dan LDA adalah metode yang memberikan hasil terbaik.
+
+> j. Experiment with different combinations of predictors, including possible transformations and interactions, for each of the methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for $K$ in the KNN classifier.
+
+```{r}
+fit <- glm(Direction ~ Lag1, data = Weekly[train, ], family = binomial)
+pred <- predict(fit, Weekly[test, ], type = "response") > 0.5
+mean(ifelse(pred, "Up", "Down") == Weekly[test, ]$Direction)
+
+fit <- glm(Direction ~ Lag3, data = Weekly[train, ], family = binomial)
+pred <- predict(fit, Weekly[test, ], type = "response") > 0.5
+mean(ifelse(pred, "Up", "Down") == Weekly[test, ]$Direction)
+
+fit <- glm(Direction ~ Lag4, data = Weekly[train, ], family = binomial)
+pred <- predict(fit, Weekly[test, ], type = "response") > 0.5
+mean(ifelse(pred, "Up", "Down") == Weekly[test, ]$Direction)
+
+fit <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4, data = Weekly[train, ], family = binomial)
+pred <- predict(fit, Weekly[test, ], type = "response") > 0.5
+mean(ifelse(pred, "Up", "Down") == Weekly[test, ]$Direction)
+
+fit <- glm(Direction ~ Lag1 * Lag2 * Lag3 * Lag4, data = Weekly[train, ], family = binomial)
+pred <- predict(fit, Weekly[test, ], type = "response") > 0.5
+mean(ifelse(pred, "Up", "Down") == Weekly[test, ]$Direction)
+
+fit <- lda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4, data = Weekly[train, ])
+pred <- predict(fit, Weekly[test, ], type = "response")$class
+mean(pred == Weekly[test, ]$Direction)
+
+fit <- qda(Direction ~ Lag1 + Lag2 + Lag3 + Lag4, data = Weekly[train, ])
+pred <- predict(fit, Weekly[test, ], type = "response")$class
+mean(pred == Weekly[test, ]$Direction)
+
+fit <- naiveBayes(Direction ~ Lag1 + Lag2 + Lag3 + Lag4, data = Weekly[train, ])
+pred <- predict(fit, Weekly[test, ], type = "class")
+mean(pred == Weekly[test, ]$Direction)
+
+set.seed(1)
+res <- sapply(1:30, function(k) {
+  fit <- knn(
+    Weekly[train, 2:4, drop = FALSE],
+    Weekly[test, 2:4, drop = FALSE],
+    Weekly$Direction[train],
+    k = k
+  )
+  mean(fit == Weekly[test, ]$Direction)
+})
+plot(1:30, res, type = "o", xlab = "k", ylab = "Fraction correct")
+(k <- which.max(res))
+
+fit <- knn(
+  Weekly[train, 2:4, drop = FALSE],
+  Weekly[test, 2:4, drop = FALSE],
+  Weekly$Direction[train],
+  k = k
+)
+table(fit, Weekly[test, ]$Direction)
+mean(fit == Weekly[test, ]$Direction)
+```
+KNN menggunakan variabel 3 Lag pertama performa marginalnya lebih baik dari regresi logistik dengan `Lag2` jika kita setel $k$ menjadi $k = 26$.
+
+
+# Nomor 14
+
+> In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the `Auto` data set.
+
+> a. Create a binary variable, `mpg01`, that contains a 1 if `mpg` contains a value above its median, and a 0 if `mpg` contains a value below its median. You can compute the median using the `median()` function. Note you may find it helpful to use the `data.frame()` function to create a single data set containing both `mpg01` and the other `Auto` variables.
+
+```{r}
+library(ISLR2)
+data(Auto)
+mpg01 <- ifelse(Auto$mpg > median(Auto$mpg), 1, 0)
+(data_auto <- data.frame(Auto[,-1], mpg01))
+#(data_auto <- data.frame(Auto, mpg01))
+```
+
+> b. Explore the data graphically in order to investigate the association between `mpg01` and the other features. Which of the other features seem most likely to be useful in predicting `mpg01`? Scatterplots and boxplots may be useful tools to answer this question. Describe your findings.
+
+```{r}
+par(mfrow = c(2, 4))
+for (i in 1:7) boxplot(data_auto[, i] ~ data_auto$mpg01, main = colnames(data_auto)[i])
+```
+1. `Cylinders` : Mobil dengan sedikit silinder (misalnya 4) cenderung hemat BBM.
+2. `Displacement` : Mobil dengan displacement (kapasitas mesin) lebih kecil cenderung hemat BBM.
+3. `Horsepower` : Mobil dengan horsepower lebih rendah cenderung hemat BBM.
+4. `Weight` : Mobil yang lebih ringan cenderung lebih hemat BBM.
+5. `Acceleration` : Tidak ada perbedaan yang cukup signifikan.
+6. `Year` : Mobil yang lebih baru (year tinggi) tidak selalu lebih hemat BBM.
+7. `Origin` : Mobil yang berasal dari tempat 1,2,3 banyak yang hemat BBM, tapi ada juga yang tidak, hubungan tidak cukup signifikan.
+
+Kesimpulan: 
+`Cylinders`, `Displacement`, `Horsepower`, dan `Weight` bisa dijadikan prediktor yang kuat. Sementara `Acceleration`, `Year`, dan `Origin`kurang memiliki hubungan yang signifikan dengan `mpg`.
+
+> c. Split the data into a training set and a test set.
+
+```{r}
+set.seed(1)
+train_index <- sample(1:nrow(data_auto), nrow(data_auto) * 2/3)
+train_data <- data_auto[train_index, ]
+test_data <- data_auto[-train_index, ]
+```
+
+> d. Perform LDA on the training data in order to predict `mpg01` using the variables that seemed most associated with `mpg01` in (b). What is the test error of the model obtained?
+
+```{r}
+library(MASS)
+lda_model <- lda(mpg01 ~ cylinders + horsepower + weight + displacement, data = train_data)
+lda_predict <- predict(lda_model, test_data)$class
+(error_lda <- mean(lda_predict != test_data$mpg01))
+```
+Untuk memprediksi `mpg` dengan prediktor `Cylinders`, `Displacement`, `Horsepower`, dan `Weight` menggunakan model Linear Discriminant Analysis (LDA), memiliki error (potensi salah) sebesar 10.69%
+
+> e. Perform QDA on the training data in order to predict `mpg01` using the variables that seemed most associated with `mpg01` in (b). What is the test error of the model obtained?
+
+```{r}
+qda_model <- qda(mpg01 ~ cylinders + horsepower + weight + displacement, data = train_data)
+qda_predict <- predict(qda_model, test_data)$class
+(error_qda <- mean(qda_predict != test_data$mpg01))
+```
+Untuk memprediksi `mpg` dengan prediktor `Cylinders`, `Displacement`, `Horsepower`, dan `Weight` menggunakan model Quadratic Discriminant Analysis (QDA), memiliki error (potensi salah) sebesar 10.69%
+
+> f. Perform logistic regression on the training data in order to predict `mpg01` using the variables that seemed most associated with `mpg01` in (b). What is the test error of the model obtained?
+
+```{r}
+log_model <- glm(mpg01 ~ cylinders + horsepower + weight + displacement, data = train_data, family = binomial)
+log_probability <- predict(log_model, test_data, type = "response")
+log_predict <- ifelse(log_probability > 0.5, 1, 0)
+(error_log <- mean(log_predict != test_data$mpg01))
+```
+Untuk memprediksi `mpg` dengan prediktor `Cylinders`, `Displacement`, `Horsepower`, dan `Weight` menggunakan model Regresi Logistik, memiliki error (potensi salah) sebesar 8.4%
+
+> g. Perform naive Bayes on the training data in order to predict `mpg01` using the variables that seemed most associated with `mpg01` in (b). What is the test error of the model obtained?
+
+```{r}
+library(e1071)
+nb_model <- naiveBayes(mpg01 ~ cylinders + horsepower + weight + displacement, data = train_data)
+nb_predict <- predict(nb_model, test_data)
+(error_nb <- mean(nb_predict != test_data$mpg01))
+```
+Untuk memprediksi `mpg` dengan prediktor `Cylinders`, `Displacement`, `Horsepower`, dan `Weight` menggunakan model naive Bayes, memiliki error (potensi salah) sebesar 9.92%
+
+> h. Perform KNN on the training data, with several values of $K$, in order to predict `mpg01`. Use only the variables that seemed most associated with `mpg01` in (b). What test errors do you obtain? Which value of $K$ seems to perform the best on this data set?
+
+```{r}
+library(class)
+train_X <- scale(train_data[, c("cylinders", "horsepower", "weight", "displacement")])
+test_X <- scale(test_data[, c("cylinders", "horsepower", "weight", "displacement")])
+train_Y <- train_data$mpg01
+
+errors_knn <- c()
+for (k in 1:10) {
+  knn_predict <- knn(train_X, test_X, train_Y, k = k)
+  error <- mean(knn_predict != test_data$mpg01)
+  errors_knn <- c(errors_knn, error)
+}
+errors_knn
+which.min(errors_knn)
+```
+Untuk memprediksi `mpg` dengan prediktor `Cylinders`, `Displacement`, `Horsepower`, dan `Weight` menggunakan model K-Nearest Neighbors (KNN) nilai K yang paling bagus untuk data ini adalah $K=2$ dengan error (potensi salah) sebesar 11.02%
+
+
+# Nomor 15
+
+> This problem involves writing functions. 
+
+> a. Write a function, `Power()`, that prints out the result of raising 2 to the 3rd power. In other words, your function should compute $2^3$ and print out the results.
+
+```{r}
+Power <- function() print(2^3)
+Power()
+```
+
+> b. Create a new function, `Power2()`, that allows you to pass any two numbers, `x` and `a`, and prints out the value of `x^a`.
+
+```{r}
+Power2 <- function(x, a) print(x^a)
+Power2(3, 8)
+```
+
+> c. Using the `Power2()` function that you just wrote, compute $10^3$, $8^{17}$, and $131^3$.
+
+```{r}
+Power2(10, 3)
+Power2(8, 17)
+Power2(131, 3)
+```
+
+> d. Now create a new function, `Power3()`, that actually returns the result `x^a` as an `R` object, rather than simply printing it to the screen. That is, if you store the value `x^a` in an object called result within your function, then you can simply `return()` this result. The line above should be the last line in your function, before the `}` symbol.
+
+```{r}
+Power3 <- function(x, a) {
+  result <- x^a
+  return(result)
+}
+hasil <- Power3(3, 4)
+print(hasil)
+```
+
+> e. Now using the `Power3()` function, create a plot of $f(x) = x^2$. The $x$-axis should display a range of integers from 1 to 10, and the $y$-axis should display $x^2$. Label the axes appropriately, and use an appropriate title for the figure. Consider displaying either the $x$-axis, the $y$-axis, or both on the log-scale. You can do this by using `log = "x"`, `log = "y"`, or `log = "xy"` as arguments to the `plot()` function.
+
+```{r}
+nilai_x <- 1:10
+nilai_y <- Power3(nilai_x, 2)
+
+plot(nilai_x, nilai_y, type = "b", col = "blue", 
+     xlab = "Nilai x", ylab = "x^2", 
+     main = "Plot f(x) = x^2")
+```
+
+> f. Create a function, `PlotPower()`, that allows you to create a plot of `x` against `x^a` for a fixed `a` and for a range of values of `x`. For instance, if you call `PlotPower(1:10, 3)` then a plot should be created with an $x$-axis taking on values $1,2,...,10$, and a $y$-axis taking on values $1^3,2^3,...,10^3$.
+
+```{r}
+PlotPower <- function(x, a) {
+  y <- x^a
+  plot(x, y, type = "b", col = "red", 
+       xlab = "Nilai x", ylab = paste("x^", a, sep=""), 
+       main = paste("Plot x vs x^", a, sep=""))
+}
+
+PlotPower(1:10, 3)
+```
+
+
+# Nomor 16
+
+> Using the `Boston` data set, fit classification models in order to predict whether a given census tract has a crime rate above or below the median. Explore logistic regression, LDA, naive Bayes and KNN models using various sub-sets of the predictors. Describe your findings.
+
+```{r}
+library(ISLR2)
+data(Boston)
+crime01 <- ifelse(Boston$crim > median(Boston$crim), 1, 0)
+data_boston <- data.frame(Boston, crime01)
+
+# Membagi data
+set.seed(123)
+train_index2 <- sample(1:nrow(data_boston), nrow(data_boston) * 2/3)
+train_data2 <- data_boston[train_index, ]
+test_data2 <- data_boston[-train_index, ]
+
+# Regresi Logistik
+log_model2 <- glm(crime01 ~ lstat + dis + nox + rm, data = train_data2, family = binomial)
+log_probability2 <- predict(log_model2, test_data2, type = "response")
+log_predict2 <- ifelse(log_probability2 > 0.5, 1, 0)
+error2_log <- mean(log_predict2 != test_data2$crime01)
+
+# LDA
+library(MASS)
+lda_model2 <- lda(crime01 ~ lstat + dis + nox + rm, data = train_data2)
+lda_predict2 <- predict(lda_model2, test_data2)$class
+error2_lda <- mean(lda_predict2 != test_data2$crime01)
+
+# Naive Bayes
+library(e1071)
+nb_model2 <- naiveBayes(crime01 ~ lstat + dis + nox + rm, data = train_data2)
+nb_predict2 <- predict(nb_model2, test_data2)
+error2_nb <- mean(nb_predict2 != test_data2$crime01)
+
+# KNN
+library(class)
+train2_X <- scale(train_data2[, c("lstat", "dis", "nox", "rm")])
+test2_X <- scale(test_data2[, c("lstat", "dis", "nox", "rm")])
+train2_Y <- train_data2$crime01
+
+errors2_knn <- c()
+for (k in 1:10) {
+  knn_predict2 <- knn(train2_X, test2_X, train2_Y, k = k)
+  error2 <- mean(knn_predict2 != test_data2$crime01)
+  errors2_knn <- c(errors2_knn, error2)
+}
+
+# Hasil
+list(
+  Error_Logistic = error2_log,
+  Error_LDA = error2_lda,
+  Error_Naive_Bayes = error2_nb,
+  Error_KNN = errors2_knn
+)
+```
+Untuk model K-Nearest Neighbors (KNN), nilai K yang paling bagus untuk data ini adalah $K=1$ dengan error (potensi salah) sebesar $15.52%$. Error tersebut sama dengan error yang dimiliki model Regresi Logistik dan juga model Naive Bayes. Sementara itu, model Linear Discriminant Analysis (LDA) memiliki error yang paling besar yaitu $16.38%$.

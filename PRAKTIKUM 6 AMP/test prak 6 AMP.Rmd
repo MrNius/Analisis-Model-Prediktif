@@ -1,0 +1,341 @@
+---
+title: "test prak 6 AMP"
+author: "Antonius Aditya Rizky Wijaya"
+date: "2025-02-24"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Nomor 7
+```{r}
+# Memuat dataset
+data("USArrests")
+
+# Standarisasi (mean = 0, sd = 1)
+USArrests_scaled <- scale(USArrests)
+# Hitung korelasi antar observasi
+cor_matrix <- cor(t(USArrests_scaled))  # Transpos agar korelasi dihitung antar observasi
+
+# Hitung jarak berbasis korelasi
+cor_dist <- as.dist(1 - cor_matrix)
+
+# Hitung jarak Euclidean
+euclidean_dist <- dist(USArrests_scaled)^2  # Kuadratkan untuk membandingkan dengan (1 - r_ij)
+
+# Konversi matriks ke vektor untuk perbandingan
+cor_dist_vec <- as.vector(cor_dist)
+euclidean_dist_vec <- as.vector(euclidean_dist)
+
+# Plot perbandingan
+plot(cor_dist_vec, euclidean_dist_vec, main = "Korelasi vs Jarak Euclidean^2",
+     xlab = "1 - Korelasi", ylab = "Jarak Euclidean Kuadrat", pch = 19, col = "blue")
+
+# Tambahkan regresi linear
+abline(lm(euclidean_dist_vec ~ cor_dist_vec), col = "red", lwd = 2)
+
+```
+Kesimpulan
+Korelasi tinggi antara dua ukuran ini mengonfirmasi bahwa hierarchical clustering dengan metode korelasi dan Euclidean hampir ekuivalen setelah standardisasi.
+
+# Nomor 8a
+```{r}
+data("USArrests")
+hasil_pca <- prcomp(USArrests, center = TRUE, scale. = TRUE)
+pve_a <- (hasil_pca$sdev^2) / sum(hasil_pca$sdev^2)
+cat("PVE menggunakan sdev dari prcomp():\n")
+print(pve_a)
+
+```
+
+# Nomor 8b
+```{r}
+lambda <- apply(hasil_pca$x, 2, var)
+pve_b <- lambda / sum(lambda)
+cat("PVE menggunakan Equation 12.10:\n")
+print(pve_b)
+
+all.equal(pve_a, pve_b)
+
+```
+Kesimpulan
+Menggunakan sdev dari prcomp() (a) lebih sederhana daripada menghitung secara manual dengan Equation 12.10 (b).
+Kedua metode memberikan hasil yang identik, yang membuktikan keakuratan teori PCA dalam menangkap variansi data.
+PCA berguna untuk reduksi dimensi, karena kita dapat memilih beberapa PC pertama yang menjelaskan sebagian besar variansi, tanpa kehilangan terlalu banyak informasi.
+
+# Nomor 9a
+```{r}
+# Memuat dataset
+data("USArrests")
+
+# Menghitung matriks jarak Euclidean
+dist_matrix <- dist(USArrests)
+
+# Melakukan hierarchical clustering dengan complete linkage
+hc_complete <- hclust(dist_matrix, method = "complete")
+
+# Plot dendrogram
+plot(hc_complete, main = "Dendrogram: Complete Linkage (Tanpa Scaling)",
+     xlab = "", sub = "", cex = 0.7)
+
+```
+
+# Nomor 9b
+```{r}
+# Memotong dendrogram menjadi 3 cluster
+clusters <- cutree(hc_complete, k = 3)
+
+# Menampilkan negara bagian dalam setiap cluster
+split(names(clusters), clusters)
+
+```
+
+# Nomor 9c
+```{r}
+# Standarisasi data (mean = 0, sd = 1)
+USArrests_scaled <- scale(USArrests)
+
+# Menghitung matriks jarak Euclidean setelah scaling
+dist_matrix_scaled <- dist(USArrests_scaled)
+
+# Melakukan hierarchical clustering dengan complete linkage setelah scaling
+hc_complete_scaled <- hclust(dist_matrix_scaled, method = "complete")
+
+# Plot dendrogram setelah scaling
+plot(hc_complete_scaled, main = "Dendrogram: Complete Linkage (Dengan Scaling)",
+     xlab = "", sub = "", cex = 0.7)
+
+```
+
+# Nomor 9d
+Perubahan dalam Struktur Cluster:
+- Sebelum scaling, negara bagian dengan tingkat kriminalitas tinggi cenderung dikelompokkan bersama karena variabel memiliki skala yang berbeda.
+- Setelah scaling, clustering lebih dipengaruhi oleh pola variabilitas dalam data daripada oleh besarnya nilai asli.
+
+Apakah Scaling Perlu Dilakukan?
+Ya, scaling sangat disarankan sebelum clustering, kecuali jika semua variabel memiliki skala yang serupa.
+- Jika tidak di-scale, variabel dengan skala lebih besar (seperti "Murder" yang memiliki nilai lebih tinggi dibandingkan "Rape") akan mendominasi hasil clustering.
+- Scaling membuat setiap variabel berkontribusi secara setara, sehingga hasil clustering lebih mencerminkan pola struktur data yang sesungguhnya.
+
+Kesimpulan
+(a) Hierarchical clustering tanpa scaling memberikan struktur awal dendrogram berdasarkan variabel asli.
+(b) Memotong dendrogram menghasilkan 3 cluster, yang menunjukkan pola tertentu dalam tingkat kriminalitas antar negara bagian.
+(c) Setelah scaling, dendrogram bisa berubah karena pengaruh variabel dengan skala lebih besar dikurangi.
+(d) Scaling sangat disarankan sebelum clustering untuk menghindari bias dari variabel yang memiliki skala lebih besar.
+
+
+# Nomor 10a
+```{r}
+set.seed(123)  # Untuk replikasi hasil
+
+# Jumlah observasi dan variabel
+n <- 20  # Observasi per kelas
+p <- 50  # Jumlah variabel
+
+# Membuat tiga kelompok dengan mean berbeda
+class1 <- matrix(rnorm(n * p, mean = 0), nrow = n, ncol = p)
+class2 <- matrix(rnorm(n * p, mean = 3), nrow = n, ncol = p)  # Mean shift
+class3 <- matrix(rnorm(n * p, mean = -3), nrow = n, ncol = p)
+
+# Gabungkan data
+X <- rbind(class1, class2, class3)
+
+# Label kelas asli
+true_labels <- rep(1:3, each = n)
+
+```
+
+# Nomor 10b
+```{r}
+# PCA pada data simulasi
+pca_result <- prcomp(X, center = TRUE, scale. = TRUE)
+
+# Plot PC1 vs PC2
+plot(pca_result$x[, 1:2], col = true_labels, pch = 19,
+     xlab = "PC1", ylab = "PC2", main = "PCA - PC1 vs PC2")
+
+# Tambahkan legenda
+legend("topright", legend = c("Class 1", "Class 2", "Class 3"),
+       col = 1:3, pch = 19)
+
+```
+Komentar:
+- Jika titik dari kelas yang berbeda saling tumpang tindih, ulangi langkah (a) dengan mean shift lebih besar.
+- Jika kelas terlihat cukup terpisah, lanjut ke langkah (c).
+
+# Nomor 10c
+```{r}
+set.seed(123)
+km_3 <- kmeans(X, centers = 3, nstart = 20)
+
+# Bandingkan hasil clustering dengan label asli
+table(true_labels, km_3$cluster)
+
+```
+Komentar:
+- Jika K-means berhasil, mayoritas titik dari kelas yang sama akan berada dalam cluster yang sama.
+- Ingat bahwa K-means tidak mengetahui urutan label, jadi perhatikan pencocokan cluster.
+
+# Nomor 10d
+```{r}
+set.seed(123)
+km_2 <- kmeans(X, centers = 2, nstart = 20)
+table(true_labels, km_2$cluster)
+
+```
+Komentar:
+- Kemungkinan menggabungkan dua kelas dalam satu cluster.
+- Jika kelas tidak terlalu terpisah, K-means mungkin salah mengelompokkan titik.
+
+# Nomor 10e
+```{r}
+set.seed(123)
+km_4 <- kmeans(X, centers = 4, nstart = 20)
+table(true_labels, km_4$cluster)
+
+```
+Komentar:
+K = 4 mungkin menyebabkan overfitting, membagi kelas yang sama menjadi beberapa cluster.
+
+# Nomor 10f
+```{r}
+set.seed(123)
+km_pca <- kmeans(pca_result$x[, 1:2], centers = 3, nstart = 20)
+
+# Bandingkan hasil clustering dengan label asli
+table(true_labels, km_pca$cluster)
+
+```
+Komentar:
+Menggunakan PCA sebelum K-means sering menghasilkan cluster yang lebih jelas, karena PCA membantu mengurangi dimensi dan noise.
+
+# Nomor 10g
+```{r}
+# Standarisasi data
+X_scaled <- scale(X)
+
+set.seed(123)
+km_scaled <- kmeans(X_scaled, centers = 3, nstart = 20)
+
+# Bandingkan hasil clustering dengan label asli
+table(true_labels, km_scaled$cluster)
+
+```
+Komentar:
+- Scaling sangat penting dalam K-means, karena algoritma ini berbasis jarak Euclidean.
+- Jika variabel memiliki skala yang berbeda, fitur dengan variasi lebih besar akan mendominasi clustering.
+- Setelah scaling, hasil clustering biasanya lebih baik.
+
+Bagian (b) menggunakan PCA untuk memvisualisasikan data dalam dua dimensi, sedangkan bagian (g) menerapkan K-means setelah scaling.
+
+1️⃣ Performa Clustering
+(b) PCA → Visualisasi
+-PCA menunjukkan apakah kelas asli dapat dipisahkan dalam dua dimensi utama (PC1 & PC2).
+-Jika kelas tampak terpisah dalam ruang PCA, ini mengindikasikan bahwa clustering mungkin berjalan baik.
+-Namun, PCA tidak melakukan clustering—hanya mengurangi dimensi untuk melihat pola.
+(g) K-means setelah Scaling
+-K-means clustering menggunakan data yang telah di-scale (mean = 0, standar deviasi = 1).
+-Scaling membantu menghindari bias dari variabel dengan skala besar.
+-Biasanya, hasil clustering lebih baik dibandingkan K-means pada data mentah karena setiap variabel memiliki kontribusi yang seimbang.
+- Kesimpulan: Scaling meningkatkan hasil clustering dibandingkan dengan menggunakan data mentah di (c), tetapi tidak sebanding langsung dengan PCA di (b) karena PCA tidak melakukan clustering.
+
+2️⃣ Distribusi Cluster
+(b) PCA menunjukkan pemisahan kelas yang baik
+-Jika kelas terlihat jelas dalam ruang PC1 & PC2, maka hasil K-means dalam (g) kemungkinan besar akan lebih akurat.
+-Jika kelas masih saling tumpang-tindih dalam PCA, hasil K-means mungkin akan kurang akurat.
+(g) K-means setelah Scaling memberikan hasil lebih seimbang
+-Scaling memastikan bahwa semua variabel memiliki kontribusi yang sama.
+-Clustering menjadi lebih stabil dan konsisten, terutama jika variabel memiliki skala yang berbeda.
+- Kesimpulan: Jika PCA menunjukkan pemisahan yang baik dalam (b), maka K-means setelah scaling dalam (g) seharusnya juga memberikan cluster yang lebih akurat.
+
+> Kesimpulan no 10
+- PCA membantu memvisualisasikan apakah kelas-kelas sudah cukup terpisah.
+- K-means dengan K = 3 memberikan hasil terbaik jika kelas benar-benar terpisah.
+- K = 2 bisa menyatukan kelas yang berbeda, sementara K = 4 bisa membagi kelas terlalu kecil (overfitting).
+- PCA sebelum K-means sering meningkatkan akurasi clustering.
+- Scaling data sebelum K-means sangat direkomendasikan untuk menghindari bias dari variabel yang memiliki skala besar.
+
+
+# Nomor 11
+```{r}
+
+```
+
+# Nomor 12
+```{r}
+
+```
+
+# Nomor 13a
+```{r}
+# Memuat dataset
+data <- read.csv("Ch12Ex13.csv", header = FALSE)
+
+# Periksa dimensi dataset
+dim(data)  # Seharusnya (40, 1000)
+
+```
+
+# Nomor 13b
+```{r}
+# Transpos data agar baris merepresentasikan sampel
+data_t <- t(data)
+
+# Hitung jarak berbasis korelasi
+dist_matrix <- as.dist(1 - cor(data_t))
+
+# Hierarchical clustering dengan complete linkage
+hc_complete <- hclust(dist_matrix, method = "complete")
+
+# Plot dendrogram
+plot(hc_complete, main = "Dendrogram: Hierarchical Clustering (Complete Linkage)",
+     xlab = "Sampel", ylab = "Jarak", sub = "", cex = 0.7)
+
+```
+Jika clustering berhasil, kita harus melihat dua kelompok utama di dendrogram.
+Jika tercampur, ini mungkin karena ekspresi gen tidak cukup berbeda antara dua kelompok.
+
+```{r}
+hc_single <- hclust(dist_matrix, method = "single")
+hc_average <- hclust(dist_matrix, method = "average")
+
+par(mfrow = c(1, 2))
+plot(hc_single, main = "Single Linkage")
+plot(hc_average, main = "Average Linkage")
+par(mfrow = c(1, 1))
+
+```
+- Complete linkage lebih sering menghasilkan grup yang lebih seimbang dibandingkan single linkage.
+- Jika hasil clustering tidak jelas, PCA mungkin diperlukan untuk mengurangi dimensi sebelum clustering.
+
+# Nomor 13c
+```{r}
+# Membagi dataset menjadi kelompok sehat dan sakit
+group_healthy <- data[1:20, ]
+group_diseased <- data[21:40, ]
+
+# Melakukan uji t untuk setiap gen
+p_values <- apply(data, 2, function(gene) t.test(gene[1:20], gene[21:40])$p.value)
+
+# Urutkan berdasarkan p-value terkecil
+sorted_genes <- order(p_values)
+
+# Ambil 10 gen yang paling berbeda
+top_genes <- sorted_genes[1:10]
+cat("Gen dengan perbedaan terbesar:\n")
+print(top_genes)
+
+```
+> Analisis Hasil
+- Jika banyak gen memiliki p-value kecil (< 0.05) → Banyak gen berekspresi berbeda antara dua kelompok.
+- Jika hanya sedikit gen dengan p-value kecil → Mungkin ekspresi gen antar kelompok cukup mirip.
+- Lanjutkan dengan PCA atau clustering hanya pada gen yang paling berbeda untuk melihat apakah pemisahan menjadi lebih jelas.
+
+🔹 Kesimpulan
+1. Hierarchical Clustering berbasis korelasi Pearson menunjukkan apakah sampel sehat dan sakit terpisah dalam dua grup.
+2. Linkage method berpengaruh terhadap hasil clustering:
+Complete linkage biasanya lebih baik daripada single linkage dalam menangkap struktur kelompok.
+3. Uji t-test per gen mengidentifikasi gen yang paling berbeda antara dua kelompok.
+4. Jika hasil clustering kurang jelas, coba gunakan PCA atau hanya gunakan gen yang paling berbeda untuk clustering.

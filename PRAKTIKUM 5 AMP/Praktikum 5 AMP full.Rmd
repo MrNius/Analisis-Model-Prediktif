@@ -1,0 +1,561 @@
+---
+title: "Laporan Praktikum 5 AMP"
+author: "Antonius Aditya Rizky Wijaya\nG5402221003"
+date: "2025-02-08"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Cross-Validation and the Bootstrap
+
+## The Validation Set Approach
+
+```{r chunk1}
+library(ISLR2)
+set.seed(1)
+train <- sample(392, 196)
+```
+
+```{r chunk2}
+lm.fit <- lm(mpg ~ horsepower, data = Auto, subset = train)
+```
+
+```{r chunk3}
+attach(Auto)
+mean((mpg - predict(lm.fit, Auto))[-train]^2)
+```
+
+```{r chunk4}
+lm.fit2 <- lm(mpg ~ poly(horsepower, 2), data = Auto, 
+    subset = train)
+mean((mpg - predict(lm.fit2, Auto))[-train]^2)
+lm.fit3 <- lm(mpg ~ poly(horsepower, 3), data = Auto, 
+    subset = train)
+mean((mpg - predict(lm.fit3, Auto))[-train]^2)
+```
+
+```{r chunk5}
+set.seed(2)
+train <- sample(392, 196)
+lm.fit <- lm(mpg ~ horsepower, subset = train)
+mean((mpg - predict(lm.fit, Auto))[-train]^2)
+lm.fit2 <- lm(mpg ~ poly(horsepower, 2), data = Auto, 
+    subset = train)
+mean((mpg - predict(lm.fit2, Auto))[-train]^2)
+lm.fit3 <- lm(mpg ~ poly(horsepower, 3), data = Auto, 
+    subset = train)
+mean((mpg - predict(lm.fit3, Auto))[-train]^2)
+```
+
+## Leave-One-Out Cross-Validation
+
+```{r chunk6}
+glm.fit <- glm(mpg ~ horsepower, data = Auto)
+coef(glm.fit)
+```
+
+```{r chunk7}
+lm.fit <- lm(mpg ~ horsepower, data = Auto)
+coef(lm.fit)
+```
+
+```{r chunk8}
+library(boot)
+glm.fit <- glm(mpg ~ horsepower, data = Auto)
+cv.err <- cv.glm(Auto, glm.fit)
+cv.err$delta
+```
+
+```{r chunk9}
+cv.error <- rep(0, 10)
+for (i in 1:10) {
+  glm.fit <- glm(mpg ~ poly(horsepower, i), data = Auto)
+  cv.error[i] <- cv.glm(Auto, glm.fit)$delta[1]
+}
+cv.error
+```
+
+## $k$-Fold Cross-Validation
+
+```{r chunk10}
+set.seed(17)
+cv.error.10 <- rep(0, 10)
+for (i in 1:10) {
+  glm.fit <- glm(mpg ~ poly(horsepower, i), data = Auto)
+  cv.error.10[i] <- cv.glm(Auto, glm.fit, K = 10)$delta[1]
+}
+cv.error.10
+```
+
+## The Bootstrap
+
+### Estimating the Accuracy of a Statistic of Interest
+
+```{r chunk11}
+alpha.fn <- function(data, index) {
+  X <- data$X[index]
+  Y <- data$Y[index]
+  (var(Y) - cov(X, Y)) / (var(X) + var(Y) - 2 * cov(X, Y))
+}
+```
+
+```{r chunk12}
+alpha.fn(Portfolio, 1:100)
+```
+
+```{r chunk13}
+set.seed(7)
+alpha.fn(Portfolio, sample(100, 100, replace = T))
+```
+
+```{r chunk14}
+boot(Portfolio, alpha.fn, R = 1000)
+```
+
+### Estimating the Accuracy of a Linear Regression Model
+
+```{r chunk15}
+boot.fn <- function(data, index)
+  coef(lm(mpg ~ horsepower, data = data, subset = index))
+boot.fn(Auto, 1:392)
+```
+
+```{r chunk16}
+set.seed(1)
+boot.fn(Auto, sample(392, 392, replace = T))
+boot.fn(Auto, sample(392, 392, replace = T))
+```
+
+```{r chunk17}
+boot(Auto, boot.fn, 1000)
+```
+
+```{r chunk18}
+summary(lm(mpg ~ horsepower, data = Auto))$coef
+```
+
+```{r chunk19}
+boot.fn <- function(data, index)
+  coef(
+      lm(mpg ~ horsepower + I(horsepower^2), 
+        data = data, subset = index)
+    )
+set.seed(1)
+boot(Auto, boot.fn, 1000)
+summary(
+    lm(mpg ~ horsepower + I(horsepower^2), data = Auto)
+  )$coef
+```
+
+
+# Exercise
+
+# *Nomor 5*
+
+> In Chapter 4, we used logistic regression to predict the probability of `default` using `income` and `balance` on the `Default` data set. We will now estimate the test error of this logistic regression model using the validation set approach. Do not forget to set a random seed before beginning your analysis.
+
+> a. Fit a logistic regression model that uses `income` and `balance` to predict `default`.
+
+```{r}
+library(ISLR2)
+defult_model <- glm(default ~ income + balance, data = Default, family = "binomial")
+```
+
+> b. Using the validation set approach, estimate the test error of this model. In order to do this, you must perform the following steps:
+>    i. Split the sample set into a training set and a validation set.
+>    ii. Fit a multiple logistic regression model using only the training observations.
+>    iii. Obtain a prediction of default status for each individual in the validation set by computing the posterior probability of default for that individual, and classifying the individual to the `default` category if the posterior probability is greater than 0.5.
+>    iv. Compute the validation set error, which is the fraction of the observations in the validation set that are misclassified.
+
+```{r}
+set.seed(2)
+# i. Split the sample
+train_index <- sample(nrow(Default), nrow(Default)/2) 
+train_data <- Default[train_index, ]
+valid_data <- Default[-train_index, ]
+
+# ii. Fit a multiple logistic regression model
+model_train <- glm(default ~ income + balance, data = train_data, family = "binomial")
+
+# iii. Obtain a prediction of default status and classifying for each individual in the validation set
+prob_predict <- predict(model_train, valid_data, type = "response")
+class_predict <- ifelse(prob_predict > 0.5, "Yes", "No")
+
+# iv. Compute the validation set error
+(table(class_predict, valid_data$default))
+(mean(class_predict != valid_data$default))
+```
+
+> c. Repeat the process in (b) three times, using three different splits of the observations into a training set and a validation set. Comment on the results obtained.
+
+```{r}
+# Pengulangan pertama
+set.seed(2)
+train_index <- sample(nrow(Default), nrow(Default) *0.8) 
+train_data <- Default[train_index, ]
+valid_data <- Default[-train_index, ]
+model_train_d <- glm(default ~ income + balance, data = train_data, family = "binomial")
+prob_predict <- predict(model_train_d, valid_data, type = "response")
+class_predict <- ifelse(prob_predict > 0.5, "Yes", "No")
+(table(class_predict, valid_data$default))
+(mean(class_predict != valid_data$default))
+
+# Pengulangan kedua
+set.seed(2)
+train_index <- sample(nrow(Default), nrow(Default) *0.7) 
+train_data <- Default[train_index, ]
+valid_data <- Default[-train_index, ]
+model_train_d <- glm(default ~ income + balance, data = train_data, family = "binomial")
+prob_predict <- predict(model_train_d, valid_data, type = "response")
+class_predict <- ifelse(prob_predict > 0.5, "Yes", "No")
+(table(class_predict, valid_data$default))
+(mean(class_predict != valid_data$default))
+
+# Pengulangan ketiga
+set.seed(2)
+train_index <- sample(nrow(Default), nrow(Default) *0.4) 
+train_data <- Default[train_index, ]
+valid_data <- Default[-train_index, ]
+model_train_d <- glm(default ~ income + balance, data = train_data, family = "binomial")
+prob_predict <- predict(model_train_d, valid_data, type = "response")
+class_predict <- ifelse(prob_predict > 0.5, "Yes", "No")
+(table(class_predict, valid_data$default))
+(mean(class_predict != valid_data$default))
+```
+Dengan menggunakan `set.seed(2)`, proporsi $80:20$ menghasilkan validation error yang lebih kecil ($2,1$%) dibanding proporsi $70:30$ ($2,13$%) dan proporsi $40:60$ ($2,48$%), bahkan proporsi $50:50$ pada soal (b) ($2,38$%).
+
+Dari sini saya bisa menyimpulkan:
+1. Jika proporsi `training set` lebih besar, akan memungkinkan model lebih akurat karena lebih banyak data untuk di `train`. Namun, `validation set` yang terlalu kecil dapat membuat `validation error` menjadi kurang stabil akibat kurangnya data untuk divalidasi.
+2. Jika proporsi `training set` lebih kecil, akan membuat model kurang stabil (`underfitting`) karena data untuk di-`train`-nya terbatas. Namun, `validation set` yang lebih besar akan membuat `validation error` menjadi lebih representatif terhadap populasi (distribusi datanya lebih mendekati distribusi populasi).
+
+Bagaimana menentukan proporsi data yang tepat?
+1. `Training data` lebih besar dari `validation data` (umum digunakan), dapat digunakan jika `dataset` kecil atau model yang kompleks. 
+2. `Training data` lebih kecil dari `validation data`, dapat digunakan jika `dataset` besar atau variasi data yang kompleks.
+
+Tapi kita juga bisa menggunakan tujuan pemodelan sebagai alasan membagi data. Apakah tujuannya untuk generalisasi model (gunakan training data lebih besar) atau evaluasi model (gunakan validation data lebih besar)
+
+> d. Now consider a logistic regression model that predicts the probability of `default` using `income`, `balance`, and a dummy variable for `student`. Estimate the test error for this model using the validation set approach. Comment on whether or not including a dummy variable for `student` leads to a reduction in the test error rate.
+
+```{r}
+# Pengulangan pertama
+set.seed(2)
+train_index <- sample(nrow(Default), nrow(Default) *0.8) 
+train_data <- Default[train_index, ]
+valid_data <- Default[-train_index, ]
+model_train_stu <- glm(default ~ income + balance + student, data = train_data, family = "binomial")
+prob_predict <- predict(model_train_stu, valid_data, type = "response")
+class_predict <- ifelse(prob_predict > 0.5, "Yes", "No")
+(table(class_predict, valid_data$default))
+(mean(class_predict != valid_data$default))
+
+# Pengulangan kedua
+set.seed(2)
+train_index <- sample(nrow(Default), nrow(Default) *0.7) 
+train_data <- Default[train_index, ]
+valid_data <- Default[-train_index, ]
+model_train_stu <- glm(default ~ income + balance + student, data = train_data, family = "binomial")
+prob_predict <- predict(model_train_stu, valid_data, type = "response")
+class_predict <- ifelse(prob_predict > 0.5, "Yes", "No")
+(table(class_predict, valid_data$default))
+(mean(class_predict != valid_data$default))
+
+# Pengulangan ketiga
+set.seed(2)
+train_index <- sample(nrow(Default), nrow(Default) *0.4) 
+train_data <- Default[train_index, ]
+valid_data <- Default[-train_index, ]
+model_train_stu <- glm(default ~ income + balance + student, data = train_data, family = "binomial")
+prob_predict <- predict(model_train_stu, valid_data, type = "response")
+class_predict <- ifelse(prob_predict > 0.5, "Yes", "No")
+(table(class_predict, valid_data$default))
+(mean(class_predict != valid_data$default))
+```
+Bisa dilihat `validation error` meningkat untuk semua proporsi data, hal ini mengindikasikan bahwa prediktor `student` tidak relevan karena model menjadi lebih kompleks tanpa manfaat tambahan (`overfitting`).
+
+
+# *Nomor 6*
+
+> We continue to consider the use of a logistic regression model to predict the probability of `default` using `income` and `balance` on the `Default` data set. In particular, we will now compute estimates for the standard errors of the `income` and `balance` logistic regression coefficients in two different ways: (1) using the bootstrap, and (2) using the standard formula for computing the standard errors in the `glm()` function. Do not forget to set a random seed before beginning your analysis.
+
+> a. Using the `summary()` and `glm()` functions, determine the estimated standard errors for the coefficients associated with `income` and `balance` in a multiple logistic regression model that uses both predictors.
+
+```{r}
+library(ISLR2)
+set.seed(3)
+model_6 <- glm(default ~ income + balance, data = Default, family = binomial)
+summary(model_6)
+```
+Didapat $\beta_1 = 2.081*10^{-05}$ dengan `standard error`-nya $= 4.985*10^{-06}$ dan $\beta_2 = 5.647*10^{-03}$ dengan `standard error`-nya $= 2.274*10^{-04}$
+
+> b. Write a function, `boot.fn()`, that takes as input the `Default` data set as well as an index of the observations, and that outputs the coefficient estimates for `income` and `balance` in the multiple logistic regression model.
+
+```{r}
+boot.fn <- function(data, index) {
+  model <- glm(default ~ income + balance, data = data[index, ], family = 'binomial')
+  return(coef(model)[2:3])
+}
+```
+
+> c. Use the `boot()` function together with your `boot.fn()` function to estimate the standard errors of the logistic regression coefficients for income and balance.
+
+```{r, cache = TRUE}
+library(boot)
+set.seed(3)
+(hasil_bootstrap <- boot(data = Default, statistic = boot.fn, R = 1000))
+```
+
+> d. Comment on the estimated standard errors obtained using the `glm()` function and using your bootstrap function.
+
+Output dari `summary(model_6)` pada bagian (a) memberikan `standard error` berdasarkan metode formula bawaan dari regresi logistik `(glm())`. Sementara output dari `boot()` pada bagian (c) memberikan `standard error` berdasarkan metode bootstrap, yang menghitung variasi.
+
+Dengan metode bootstrap didapat $\beta_1 = 2.080898*10^{-05}$ dengan `standard error`-nya $= 4.857844*10^{-06}$ dan $\beta_2 = 5.647103*10^{-03}$ dengan `standard error`-nya $= 2.310337*10^{-04}$
+
+`Standard error` berdasarkan metode bootstrap sedikit lebih besar dari `standard error` berdasarkan metode formula bawaan, hal ini karena metode bootstrap lebih sensitif terhadap variasi data.
+
+
+# *Nomor 7*
+
+> In Sections 5.3.2 and 5.3.3, we saw that the `cv.glm()` function can be used in order to compute the LOOCV test error estimate. Alternatively, one could compute those quantities using just the `glm()` and `predict.glm()` functions, and a for loop. You will now take this approach in order to compute the LOOCV error for a simple logistic regression model on the `Weekly` data set. Recall that in the context of classification problems, the LOOCV error is given in (5.4).
+
+> a. Fit a logistic regression model that predicts `Direction` using `Lag1` and `Lag2`.
+
+```{r}
+library(ISLR2)
+data(Weekly)
+model_7a <- glm(Direction ~ Lag1 + Lag2, data = Weekly, family = 'binomial')
+summary(model_7a)
+```
+
+> b. Fit a logistic regression model that predicts `Direction` using `Lag1` and `Lag2` _using all but the first observation_.
+
+```{r}
+model_7b <- glm(Direction ~ Lag1 + Lag2, data = Weekly[-1, ], family = 'binomial')
+summary(model_7b)
+```
+
+> c. Use the model from (b) to predict the direction of the first observation. You can do this by predicting that the first observation will go up if $P($`Direction="Up" | Lag1 , Lag2`$) > 0.5$. Was this observation correctly classified?
+
+```{r}
+prob_predict <- predict(model_7b, Weekly[1,], type = "response")
+class_predict <- ifelse(prob_predict > 0.5, "Up", "Down")
+
+cat("Prediksi:\n")
+class_predict
+cat("\nYang benar:\n")
+Weekly$Direction[1]
+```
+Prediksinya salah, data `Direction` pada observasi pertama seharusnya "Down", namun hasil prediksinya "Up". 
+
+> d. Write a for loop from $i = 1$ to $i = n$, where $n$ is the number of observations in the data set, that performs each of the following steps:
+>    i.   Fit a logistic regression model using all but the $i$th observation to predict `Direction` using `Lag1` and `Lag2` .
+>    ii.  Compute the posterior probability of the market moving up for the $i$th observation.
+>    iii. Use the posterior probability for the $i$th observation in order to predict whether or not the market moves up.
+>    iv.  Determine whether or not an error was made in predicting the direction for the $i$th observation. If an error was made, then indicate this as a 1, and otherwise indicate it as a 0.
+
+```{r}
+error <- numeric(nrow(Weekly))
+for (i in 1:nrow(Weekly)) {
+  model <- glm(Direction ~ Lag1 + Lag2, data = Weekly[-i, ], family = "binomial")
+  pred <- predict(model, Weekly[i, ], type = "response")
+  class <- ifelse(pred > 0.5, "Up", "Down")
+  error[i] <- ifelse(class != Weekly$Direction[i], 1, 0)
+}
+```
+
+> e. Take the average of the $n$ numbers obtained in (d) in order to obtain the LOOCV estimate for the test error. Comment on the results.
+
+```{r}
+loocv_error <- mean(error)
+cat("LOOCV Test Error:", loocv_error, "\n")
+```
+LOOCV Test Error sekitar $45$% yang mengindikasikan bahwa prediksi mungkin akan sedikit lebih sering benar daripada salah, tapi memang tidak menutup fakta bahwa kemungkinan salahnya pun besar.
+
+
+# *Nomor 8*
+
+> We will now perform cross-validation on a simulated data set.
+
+> a. Generate a simulated data set. In this data set, what is $n$ and what is $p$? Write out the model used to generate the data in equation form.
+
+```{r}
+set.seed(1)
+x <- rnorm(100)
+y <- x - 2 * x^2 + rnorm(100)
+n <- length(x)  # n = 100
+p <- 1
+cat("Jumlah observasi (n):", n, "\n")
+cat("Jumlah prediktor (p):", p, "\n")
+```
+Model matematis: $y = -2x^2 + x + \epsilon$, di mana $\epsilon$ ~ N(0, 1)
+
+> b. Create a scatterplot of $X$ against $Y$. Comment on what you find.
+
+```{r}
+plot(x, y, main = "Scatterplot X vs Y", xlab = "X", ylab = "Y", pch = 16, col = "black")
+abline(lm(y ~ x), col = "red", lwd = 2) 
+```
+Scatterplot menunjukkan hubungan non-linear antara `x` dan `y`. Secara visual, terlihat bahwa `y` memiliki pola kuadratik terhadap `x`.
+
+> c. Set a random seed, and then compute the Leave-One-Out Cross-Validation (LOOCV) errors that result from fitting the following four models using least squares:
+>    i.   $Y = \beta_0 + \beta_1 X + \epsilon$
+>    ii.  $Y = \beta_0 + \beta_1 X + \beta_2 X^2 + \epsilon$
+>    iii. $Y = \beta_0 + \beta_1 X + \beta_2 X^2 + \beta_3 X^3 + \epsilon$
+>    iv.  $Y = \beta_0 + \beta_1 X + \beta_2 X^2 + \beta_3 X^3 + \beta_4 X^4 + \epsilon$.
+
+>    Note you may find it helpful to use the `data.frame()` function to create a single data set containing both $X$ and $Y$.
+
+```{r}
+data <- data.frame(x = x, y = y)
+
+loocv_error <- function(degree) {
+  errors <- rep(0, n)
+  for (i in 1:n) {
+    train_data <- data[-i, ]
+    test_data <- data[i, ]
+    model <- lm(y ~ poly(x, degree), data = train_data)
+    pred <- predict(model, newdata = test_data)
+    errors[i] <- (pred - test_data$y)^2
+  }
+  return(mean(errors))
+}
+
+set.seed(1)
+loocv_1 <- loocv_error(1) 
+loocv_2 <- loocv_error(2)
+loocv_3 <- loocv_error(3)
+loocv_4 <- loocv_error(4)
+
+cat("LOOCV Error Linear:", loocv_1, "\n")
+cat("LOOCV Error Kuadratik:", loocv_2, "\n")
+cat("LOOCV Error Kubi:", loocv_3, "\n")
+cat("LOOCV Error Kuartik:", loocv_4, "\n")
+
+```
+
+> d. Repeat (c) using another random seed, and report your results. Are your results the same as what you got in (c)? Why?
+
+```{r}
+set.seed(2)
+loocv_1_d <- loocv_error(1)
+loocv_2_d <- loocv_error(2)
+loocv_3_d <- loocv_error(3)
+loocv_4_d <- loocv_error(4)
+
+cat("Hasil LOOCV dengan seed berbeda:\n")
+cat("LOOCV Error Linear:", loocv_1, "\n")
+cat("LOOCV Error Kuadratik:", loocv_2, "\n")
+cat("LOOCV Error Kubik:", loocv_3, "\n")
+cat("LOOCV Error Kuartik:", loocv_4, "\n")
+```
+Hasil LOOCV error kemungkinan sama, karena LOOCV tidak bergantung pada pengacakan subset seperti metode `k-fold`.
+
+> e. Which of the models in (c) had the smallest LOOCV error? Is this what you expected? Explain your answer.
+
+Model linear (derajat 1) memiliki error lebih tinggi karena tidak mampu menggambarkan hubungan non-linear yang jelas dalam data. 
+
+Model kubik (derajat 3) dan kuartik (derajat 4) dapat memiliki error yang lebih rendah dibandingkan model linear, tetapi mungkin tidak jauh lebih baik dari model kuadratik. Sehingga model kuadratik (derajat 2) memiliki LOOCV error terkecil. 
+
+Ini sesuai ekspektasi, karena model yang sebenarnya digunakan untuk mensimulasikan data adalah kuadratik.
+
+> f. Comment on the statistical significance of the coefficient estimates that results from fitting each of the models in (c) using least squares. Do these results agree with the conclusions drawn based on the cross-validation results?
+
+```{r}
+model_8f_1 <- lm(y ~ poly(x, 1), data = data)  
+model_8f_2 <- lm(y ~ poly(x, 2), data = data)  
+model_8f_3 <- lm(y ~ poly(x, 3), data = data)  
+model_8f_4 <- lm(y ~ poly(x, 4), data = data)
+
+summary(model_8f_1)
+summary(model_8f_2)
+summary(model_8f_3)
+summary(model_8f_4)
+```
+Koefisien Signifikan (p-value < 0.05):
+Model Linear: signifikan namun kurang kuat 
+Model Kuadratik: semua koefisien sangat signifikan 
+Model Kubik: ada koefisien yang tidak signifikan 
+Model Kuartik: ada koefisien yang tidak signifikan  
+
+Jika digabungkan dengan hasil LOOCV Error setiap model, dapat disimpulkan bahwa model kuadratik kemungkinan besar optimal, dengan koefisien yang signifikan dan LOOCV error yang rendah. Meski model kubik dan kuartik memiliki LOOCV error yang cukup rendah juga, namun dua model ini memiliki koefisien yang tidak signifikan, sehingga menunjukkan bahwa terjadi overfitting.
+
+
+# *Nomor 9*
+
+> We will now consider the `Boston` housing data set, from the `ISLR2` library.
+
+> a.  Based on this data set, provide an estimate for the population mean of `medv`. Call this estimate $\hat\mu$.
+
+```{r}
+library(ISLR2)
+data("Boston")
+mean_medv <- mean(Boston$medv)
+cat("Rata-rata populasi (µ̂):", mean_medv, "\n")
+```
+
+> b.  Provide an estimate of the standard error of $\hat\mu$. Interpret this result.
+
+>    _Hint: We can compute the standard error of the sample mean by  dividing the sample standard deviation by the square root of the number of observations._
+
+```{r}
+se_mean <- sd(Boston$medv) / sqrt(length(Boston$medv))
+cat("SE mean:", se_mean, "\n")
+```
+
+> c.  Now estimate the standard error of $\hat\mu$ using the bootstrap. How does this compare to your answer from (b)?
+
+```{r}
+set.seed(4)
+bootstrap_means <- replicate(1000, mean(sample(Boston$medv, length(Boston$medv), replace = TRUE)))
+se_mean_bootstrap <- sd(bootstrap_means)
+cat("SE mean (Bootstrap):", se_mean_bootstrap, "\n")
+```
+Standard error menggunakan bootstrap adalah `0.4069406`. Nilai ini sangat dekat dengan standard error yang didapat dari formula soal (b) yaitu `0.4088611`. Standard error dari bootstrap biasanya lebih akurat karena memperhitungkan variasi distribusi data secara empiris.
+
+> d.  Based on your bootstrap estimate from (c), provide a 95% confidence interval for the mean of `medv`. Compare it to the results obtained using `t.test(Boston$medv)`.
+
+>    _Hint: You can approximate a 95% confidence interval using the formula $[\hat\mu - 2SE(\hat\mu),  \hat\mu + 2SE(\hat\mu)].$_
+
+```{r}
+ci_bootstrap <- c(mean_medv - 2 * se_mean_bootstrap, mean_medv + 2 * se_mean_bootstrap)
+cat("95% CI (Bootstrap):", ci_bootstrap, "\n")
+
+hasil_t_test <- t.test(Boston$medv)
+cat("95% CI (t-test):", hasil_t_test$conf.int, "\n")
+```
+
+> e.  Based on this data set, provide an estimate, $\hat\mu_{med}$, for the median value of `medv` in the population.
+
+```{r}
+median_medv <- median(Boston$medv)
+cat("Median populasi (µ̂med):", median_medv, "\n")
+```
+
+> f.  We now would like to estimate the standard error of $\hat\mu_{med}$. Unfortunately, there is no simple formula for computing the standard error of the median. Instead, estimate the standard error of the median using the bootstrap. Comment on your findings.
+
+```{r}
+set.seed(4)
+bootstrap_medians <- replicate(1000, median(sample(Boston$medv, length(Boston$medv), replace = TRUE)))
+se_median_bootstrap <- sd(bootstrap_medians)
+cat("SE Median (Bootstrap):", se_median_bootstrap, "\n")
+```
+Estimasi standard error median adalah `0.3749919`, ini lebih kecil dibanding standard error mean (`0.4069406`).
+
+> g.  Based on this data set, provide an estimate for the tenth percentile of `medv` in Boston census tracts. Call this quantity $\hat\mu_{0.1}$. (You can use the `quantile()` function.)
+
+```{r}
+persentil_10 <- quantile(Boston$medv, 0.1)
+cat("Persentil ke-10 (µ̂0.1):", persentil_10, "\n")
+```
+
+> h.  Use the bootstrap to estimate the standard error of $\hat\mu_{0.1}$. Comment on your findings.
+
+```{r}
+set.seed(4)
+bootstrap_percentile_10 <- replicate(1000, quantile(sample(Boston$medv, length(Boston$medv), replace = TRUE), 0.1))
+se_percentile_10 <- sd(bootstrap_percentile_10)
+cat("SE Percentile ke-10 (Bootstrap):", se_percentile_10, "\n")
+```
+Kita dapatkan standard error = `0.4900443`, ini lebih besar dibanding standard error median (`0.3749919`).

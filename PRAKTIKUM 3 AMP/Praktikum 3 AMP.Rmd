@@ -1,0 +1,318 @@
+---
+title: "Laporan Praktikum 3 AMP"
+author: "Antonius Aditya Rizky Wijaya"
+date: "2025-02-06"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Classification Methods
+
+## The Stock Market Data
+
+```{r}
+library(ISLR2)
+names(Smarket)
+dim(Smarket)
+summary(Smarket)
+pairs(Smarket)
+```
+Keterangan : Melakukan eksplorasi awal terhadap data untuk memahami struktur dan distribusinya.
+
+```{r chunk2, error=TRUE}
+#cor(Smarket)
+cor(Smarket[, -9])
+```
+Keterangan : Melihat hubungan linear antar variabel numerik untuk memahami mana yang mungkin berhubungan dengan `Direction`.
+
+```{r}
+attach(Smarket)
+plot(Volume)
+```
+Keterangan : Melihat bagaimana tren Volume perdagangan berubah selama periode waktu yang ada dalam dataset.
+
+### Code Halaman 175
+
+```{r}
+train <- (Year < 2005)
+Smarket.2005 <- Smarket[!train, ]
+dim(Smarket.2005)
+Direction.2005 <- Direction[!train]
+```
+Keterangan :
+Pada baris awal kita mencoba memisahkah training set dengan test set. Data sebelum 2005 (training set), dan data dari 2005 ke atas (test set). Lalu dengan `Smarket[!train, ]`, kita memilih hanya data dengan `Year >= 2005`, sehingga `Smarket.2005` berisi hanya test set. Fungsi `dim()` menampilkan jumlah baris dan kolom dari `Smarket.2005`, yaitu $252 x 9$.
+Selanjutnya, `Direction` adalah variabel respons yang menunjukkan apakah pasar saham naik ("Up") atau turun ("Down"). `Direction[!train]` mengambil hanya nilai `Direction` dari test set (2005 ke atas) dan menyimpannya di `Direction.2005`.
+
+## $K$-Nearest Neighbors
+
+```{r}
+library(class)
+train.X <- cbind(Lag1, Lag2)[train, ]
+test.X <- cbind(Lag1, Lag2)[!train, ]
+train.Direction <- Direction[train]
+```
+Keterangan :
+Dataset dipecah menjadi training set dan test set, hanya menggunakan prediktor `Lag1` dan `Lag2` karena diduga memiliki hubungan dengan `Direction`. Sementara `train.Direction` berisi label kategori untuk data latih.
+
+```{r}
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Direction, k = 1)
+table(knn.pred, Direction.2005)
+(83 + 43) / 252
+```
+Keterangan :
+Model KNN dengan $k = 1$ dibuat dan hasilnya dibandingkan dengan data aktual. Akurasi dihitung dengan $(83 + 43) / 252 = 50%$, yang menunjukkan model ini tidak jauh lebih baik dari tebakan acak.
+
+```{r}
+knn.pred <- knn(train.X, test.X, train.Direction, k = 3)
+table(knn.pred, Direction.2005)
+mean(knn.pred == Direction.2005)
+```
+Keterangan :
+Model KNN dengan $k = 3$ diuji untuk melihat apakah lebih baik dari $k = 1$. Menggunakan `mean(knn.pred == Direction.2005)`, akurasi dihitung dan dibandingkan dengan model sebelumnya.
+
+```{r}
+dim(Caravan)
+attach(Caravan)
+summary(Purchase)
+348 / 5822
+```
+Keterangan :
+Dataset `Caravan` memiliki $5.822$ observasi dan target variabel `Purchase`. Hanya $348$ orang yang membeli asuransi (sekitar $6%$), menunjukkan dataset sangat tidak seimbang.
+
+```{r}
+standardized.X <- scale(Caravan[, -86])
+var(Caravan[, 1])
+var(Caravan[, 2])
+var(standardized.X[, 1])
+var(standardized.X[, 2])
+```
+Keterangan :
+Variabel prediktor distandarisasi menggunakan `scale()`, karena KNN sensitif terhadap skala variabel. Setelah standarisasi, semua variabel memiliki varians yang seragam.
+
+```{r}
+test <- 1:1000
+train.X <- standardized.X[-test, ]
+test.X <- standardized.X[test, ]
+train.Y <- Purchase[-test]
+test.Y <- Purchase[test]
+set.seed(1)
+knn.pred <- knn(train.X, test.X, train.Y, k = 1)
+mean(test.Y != knn.pred)
+mean(test.Y != "No")
+```
+Keterangan :
+$1.000$ observasi pertama digunakan sebagai test set, sisanya sebagai training set. Model KNN dengan $k = 1$ diuji dan error rate dihitung. Akurasi model tidak terlalu baik karena dataset tidak seimbang `(mean(test.Y != "No")` menunjukkan mayoritas prediksi adalah "No").
+
+```{r}
+table(knn.pred, test.Y)
+9 / (68 + 9)
+```
+Keterangan :
+Dari $77$ prediksi "Yes", hanya $9$ yang benar. Rasio keberhasilan deteksi pembelian asuransi sangat kecil, sekitar $11.7%$. Model cenderung bias ke "No" karena mayoritas sampel memang "No".
+
+```{r}
+knn.pred <- knn(train.X, test.X, train.Y, k = 3)
+table(knn.pred, test.Y)
+5 / 26
+knn.pred <- knn(train.X, test.X, train.Y, k = 5)
+table(knn.pred, test.Y)
+4 / 15
+```
+Keterangan :
+Dengan $k = 3$, hanya 5 dari 26 prediksi "Yes" yang benar, sekitar $19.2%$ akurasi pada kelas "Yes".
+Dengan $4k = 5$, hanya 4 dari 15 prediksi "Yes" yang benar, sekitar $26.7%$ akurasi pada kelas "Yes".
+Semakin besar $k$, semakin sedikit false positive, tetapi semakin banyak false negative.
+
+```{r}
+glm.fits <- glm(Purchase ~ ., data = Caravan,
+    family = binomial, subset = -test)
+glm.probs <- predict(glm.fits, Caravan[test, ],
+    type = "response")
+glm.pred <- rep("No", 1000)
+glm.pred[glm.probs > .5] <- "Yes"
+table(glm.pred, test.Y)
+glm.pred <- rep("No", 1000)
+glm.pred[glm.probs > .25] <- "Yes"
+table(glm.pred, test.Y)
+11 / (22 + 11)
+```
+Keterangan :
+Model regresi logistik dibuat dan dilatih hanya pada training test. Jika menggunakan ambang batas probabilitas $50%$, hampir semua prediksi adalah "No", karena dataset tidak seimbang. Jika ambang batas diturunkan ke $25%$, lebih banyak "Yes" yang terdeteksi. Akurasi untuk mendeteksi pembelian asuransi tetap rendah $(11 / (22 + 11) = 33%$ pada kategori "Yes").
+
+
+# Exercise
+
+# Nomor 13
+
+> This question should be answered using the `Weekly` data set, which is part of the `ISLR2` package. This data is similar in nature to the `Smarket` data from this chapter's lab, except that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+```{r}
+library(ISLR2)
+library(class)
+data(Weekly)
+names(Weekly)
+dim(Weekly)
+```
+> a. Produce some numerical and graphical summaries of the `Weekly` data. Do there appear to be any patterns?
+
+```{r}
+summary(Weekly)
+pairs(Weekly[, -9])
+plot(Weekly$Volume, type = "l", main = "Volume Mingguan", ylab = "Volume", xlab = "Minggu")
+```
+Year dan Volume tampaknya memiliki hubungan, trennya relatif positif.
+
+> g. Repeat (d) using KNN with $K = 1$.
+
+```{r}
+library(class)
+train <- Weekly$Year < 2009
+test <- Weekly$Year > 2008
+
+knn_model <- knn(
+  Weekly[train, "Lag2", drop = FALSE],
+  Weekly[test, "Lag2", drop = FALSE],
+  Weekly$Direction[train], k = 1
+)
+(confusion_matrix_knn <- table(Prediction = knn_model, Actual = Weekly[test, ]$Direction))
+
+(akurasi_knn <- mean(knn_model == Weekly[test, ]$Direction))
+#sum(diag(confusion_matrix_knn)) / sum(confusion_matrix_knn)
+```
+Dengan model KNN pada $k=1$, didapat akurasi $50%$
+
+> j. Experiment with different combinations of predictors, including possible transformations and interactions, for each of the methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for $K$ in the KNN classifier.
+
+```{r}
+set.seed(1)
+res <- sapply(1:30, function(k) {
+  fit <- knn(
+    Weekly[train, 2:4, drop = FALSE],
+    Weekly[test, 2:4, drop = FALSE],
+    Weekly$Direction[train],
+    k = k
+  )
+  mean(fit == Weekly[test, ]$Direction)
+})
+plot(1:30, res, type = "o", xlab = "k", ylab = "Fraction correct")
+(k <- which.max(res))
+
+fit <- knn(
+  Weekly[train, 2:4, drop = FALSE],
+  Weekly[test, 2:4, drop = FALSE],
+  Weekly$Direction[train],
+  k = k
+)
+table(Prediction = fit, Aktual = Weekly[test, ]$Direction)
+mean(fit == Weekly[test, ]$Direction)
+```
+KNN menggunakan variabel 3 Lag pertama performa marginalnya lebih baik dari regresi logistik dengan `Lag2` jika kita setel $k$ menjadi $k = 26$ dengan tingkat akurasi $63.46%$
+
+
+# Nomor 14
+
+> In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the `Auto` data set.
+
+> a. Create a binary variable, `mpg01`, that contains a 1 if `mpg` contains a value above its median, and a 0 if `mpg` contains a value below its median. You can compute the median using the `median()` function. Note you may find it helpful to use the `data.frame()` function to create a single data set containing both `mpg01` and the other `Auto` variables.
+
+```{r}
+library(ISLR2)
+data(Auto)
+mpg01 <- ifelse(Auto$mpg > median(Auto$mpg), 1, 0)
+(data_auto <- data.frame(Auto[,-1], mpg01))
+#(data_auto <- data.frame(Auto, mpg01))
+```
+
+> b. Explore the data graphically in order to investigate the association between `mpg01` and the other features. Which of the other features seem most likely to be useful in predicting `mpg01`? Scatterplots and boxplots may be useful tools to answer this question. Describe your findings.
+
+```{r}
+par(mfrow = c(2, 4))
+for (i in 1:7) boxplot(data_auto[, i] ~ data_auto$mpg01, main = colnames(data_auto)[i])
+```
+1. `Cylinders` : Mobil dengan sedikit silinder (misalnya 4) cenderung hemat BBM.
+2. `Displacement` : Mobil dengan displacement (kapasitas mesin) lebih kecil cenderung hemat BBM.
+3. `Horsepower` : Mobil dengan horsepower lebih rendah cenderung hemat BBM.
+4. `Weight` : Mobil yang lebih ringan cenderung lebih hemat BBM.
+5. `Acceleration` : Tidak ada perbedaan yang cukup signifikan.
+6. `Year` : Mobil yang lebih baru (year tinggi) tidak selalu lebih hemat BBM.
+7. `Origin` : Mobil yang berasal dari tempat 1,2,dan 3 banyak yang hemat BBM, tapi ada juga yang tidak, hubungan tidak cukup signifikan.
+
+Kesimpulan:
+`Cylinders`, `Displacement`, `Horsepower`, dan `Weight` bisa dijadikan prediktor yang kuat. Sementara `Acceleration`, `Year`, dan `Origin`kurang memiliki hubungan yang signifikan dengan `mpg`.
+
+```{r}
+t.test(data_auto$cylinders ~ data_auto$mpg01)
+t.test(data_auto$displacement ~ data_auto$mpg01)
+t.test(data_auto$horsepower ~ data_auto$mpg01)
+t.test(data_auto$weight ~ data_auto$mpg01)
+t.test(data_auto$acceleration ~ data_auto$mpg01)
+t.test(data_auto$year ~ data_auto$mpg01)
+t.test(data_auto$origin ~ data_auto$mpg01)
+```
+Dari t-test, `Cylinders`, `Displacement`, `Horsepower`, dan `Weight` memiliki t-value yang relatif besar sehingga bisa dijadikan prediktor yang kuat.
+
+> c. Split the data into a training set and a test set.
+
+```{r}
+set.seed(1)
+train_index <- sample(1:nrow(data_auto), nrow(data_auto) * 2/3)
+train_data <- data_auto[train_index, ]
+test_data <- data_auto[-train_index, ]
+```
+
+> h. Perform KNN on the training data, with several values of $K$, in order to predict `mpg01`. Use only the variables that seemed most associated with `mpg01` in (b). What test errors do you obtain? Which value of $K$ seems to perform the best on this data set?
+
+```{r}
+library(class)
+train_X <- scale(train_data[, c("cylinders", "horsepower", "weight", "displacement")])
+test_X <- scale(test_data[, c("cylinders", "horsepower", "weight", "displacement")])
+train_Y <- train_data$mpg01
+
+errors_knn <- c()
+for (k in 1:10) {
+  knn_predict <- knn(train_X, test_X, train_Y, k = k)
+  error <- mean(knn_predict != test_data$mpg01)
+  errors_knn <- c(errors_knn, error)
+}
+errors_knn
+which.min(errors_knn)
+```
+Untuk memprediksi `mpg` dengan prediktor `Cylinders`, `Displacement`, `Horsepower`, dan `Weight` menggunakan model K-Nearest Neighbors (KNN) nilai K yang paling bagus untuk data ini adalah $K=2$ dengan error (potensi salah) sebesar $9.92%$.
+
+
+# Nomor 16
+
+> Using the `Boston` data set, fit classification models in order to predict whether a given census tract has a crime rate above or below the median. Explore logistic regression, LDA, naive Bayes and KNN models using various sub-sets of the predictors. Describe your findings.
+
+```{r}
+library(ISLR2)
+data(Boston)
+crime01 <- ifelse(Boston$crim > median(Boston$crim), 1, 0)
+data_boston <- data.frame(Boston, crime01)
+
+# Membagi data
+set.seed(123)
+train_index2 <- sample(1:nrow(data_boston), nrow(data_boston) * 2/3)
+train_data2 <- data_boston[train_index2, ]
+test_data2 <- data_boston[-train_index2, ]
+
+# KNN
+library(class)
+train2_X <- scale(train_data2[, c("lstat", "dis", "nox", "rm")])
+test2_X <- scale(test_data2[, c("lstat", "dis", "nox", "rm")])
+train2_Y <- train_data2$crime01
+
+errors2_knn <- c()
+for (k in 1:16) {
+  knn_predict2 <- knn(train2_X, test2_X, train2_Y, k = k)
+  error2 <- mean(knn_predict2 != test_data2$crime01)
+  errors2_knn <- c(errors2_knn, error2)
+}
+errors2_knn
+which.min(errors2_knn)
+```
+Untuk model K-Nearest Neighbors (KNN), nilai K yang paling bagus untuk data ini adalah $K=3$ dengan error (potensi salah) sebesar $15.38%$.
